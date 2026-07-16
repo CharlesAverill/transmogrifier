@@ -33,7 +33,7 @@ dune build
 Consider the language of alternating bitstrings:
 
 $$
-L = \\{\\, w \in \\{0,1\\}^* \mid \forall i \in \\{1,\dots,|w|-1\\},\; w_i \neq w_{i+1} \\,\\}.
+L = \\{\\, w \in \\{0,1\\}^* \mid \forall i \in \\[1,|w|-1\\],\\; w_i \neq w_{i+1} \\,\\}.
 $$
 
 This language can be recognized by the following 4-state DFA:
