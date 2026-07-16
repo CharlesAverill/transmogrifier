@@ -1,27 +1,28 @@
 (lang dune 3.21)
 (using rocq 0.11)
 
-(name PROJECT)
+(name transmogrifier)
 
 (generate_opam_files true)
 
 (source
- (github GH_USERNAME/PROJECT))
+ (github CharlesAverill/transmogrifier))
 
 (authors
- "NAME <EMAIL>")
+ "Charles Averill <charlesaverill20@gmail.com>")
 
 (maintainers
- "NAME <EMAIL>")
+ "Charles Averill <charlesaverill20@gmail.com>")
 
-(license LICENSE)
+(license MIT)
 
-(documentation https://github.com/GH_USERNAME/PROJECT)
+(documentation https://github.com/CharlesAverill/transmogrifier)
 
 (package
- (name PROJECT)
- (synopsis "SYNOPSIS")
- (description "DESCRIPTION")
+ (name transmogrifier)
+ (synopsis "Verified finite state automata compiler")
+ (description "A formally-verified extension to CompCert for compiling finite state automata")
  (depends
-   (dune (>= 3.21.0))
-   (rocq (>= 9.0.0))))
+  (dune (>= 3.21.0))
+  (rocq-prover (>= 9.1.0))
+   coq-compcert))

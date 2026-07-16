@@ -1,0 +1,142 @@
+open Lstar
+open Automata
+open Specif
+open Teacher
+open Transmogrifier.Pipeline
+open Stdlib
+
+module S = struct
+  type t = Zero | One
+
+  let string_of_t = function Zero -> "0" | One -> "1"
+
+  let t_of_string : string -> (t, string) Datatypes.result = function
+    | "0" ->
+        Ok Zero
+    | "1" ->
+        Ok One
+    | _ ->
+        Error "t_of_string"
+
+  let eq_dec x y = x = y
+
+  let enum = [Zero; One]
+
+  type str = t list
+
+  let string_of_str s = String.concat "" (List.map string_of_t s)
+end
+
+(** Language: strings over {0,1} where the number of 1s is divisible by 3.
+    The minimal DFA has exactly 3 states (one per residue class mod 3),
+    so L* must discover a nontrivial 3-state machine. *)
+module Teacher : DFATEACHER with module S = S = struct
+  module S = S
+  module D = DFA (S)
+
+  let member (s : S.str) : bool =
+    let count =
+      List.fold_left
+        (fun acc c ->
+          if c = S.One then
+            acc + 1
+          else
+            acc )
+        0 s
+    in
+    count mod 3 = 0
+
+  let equiv_query (dfa : 'a D.t) : S.str option =
+    let rec bfs depth queue =
+      if depth >= 4096 then
+        None
+      else
+        match queue with
+        | [] ->
+            None
+        | s :: rest ->
+            if D.accept_string dfa s <> member s then
+              Some s
+            else
+              bfs (depth + 1)
+                (rest @ List.map (fun c -> s @ [c]) [S.Zero; S.One])
+    in
+    bfs 0 [[]]
+
+  let fuel : int = Int.max_int
+end
+
+(** L* implementation *)
+module Lstar = LstarLearner (Teacher)
+
+(** The learned DFA, computed once and shared by the printer and the
+    compiler.  [Pipeline] caches its own learner run, so going through
+    [Pipeline.compile] directly would learn a second time. *)
+let learned : __ Teacher.D.t Lazy.t = lazy (Lstar.lstar ())
+
+(** [LstarLearner] exposes [lstar]; [LEARNER] asks for [learn].  This adapter
+    also pins the result to [learned] so the compiled automaton is exactly
+    the one printed above. *)
+module LstarAdapter : LEARNER =
+functor (T : DFATEACHER) ->
+struct
+  let learn () : __ T.D.t = Obj.magic (Lazy.force learned)
+end
+
+(** Learn-then-compile pipeline for this teacher *)
+module P = Pipeline (S) (Teacher) (LstarAdapter)
+
+
+
+module DP = DFAPrinter (Teacher)
+
+let rec enumerate n =
+  if n <= 0 then
+    [[]]
+  else
+    let prev = enumerate (n - 1) in
+    List.map (fun s -> S.Zero :: s) prev @ List.map (fun s -> S.One :: s) prev
+
+let print_results name dfa n =
+  Printf.printf "\n=== %s ===\n" name ;
+  print_endline "DFA found" ;
+  DP.print_dfa dfa ;
+  Printf.printf "DOT file at %s\n" (DP.to_dot ~name:(name ^ "_mod3") dfa) ;
+  let strings = enumerate n in
+  let col_w = max 10 (n + 2) in
+  let header =
+    Printf.sprintf "%-*s  %-8s  %-8s  %-8s" col_w "Input" "Expected" "Got"
+      "Correct"
+  in
+  print_endline header ;
+  List.iter
+    (fun (c : S.str) ->
+      let exp = Teacher.member c in
+      let comp = Teacher.D.accept_string dfa c in
+      Printf.printf "%-*s  %-8b  %-8b  %s\n" col_w
+        (Printf.sprintf "[%s]" (S.string_of_str c))
+        exp comp
+        ( if exp = comp then
+            "Y"
+          else
+            "N" ) )
+    strings ;
+  let correct =
+    List.length
+      (List.filter
+         (fun (c : S.str) -> Teacher.member c = Teacher.D.accept_string dfa c)
+         strings )
+  in
+  Printf.printf "Accuracy: %d/%d\n" correct (List.length strings)
+
+(** Compile the learned DFA to Clight and write it out as C. *)
+let compile_to_c () =
+  let out = "examples/mod3.c" in
+  Printf.printf "\n=== Compiling to C ===\n" ;
+  match P.compile out with
+  | Stdlib.Ok () -> Printf.printf "Wrote %s\n" out
+  | Stdlib.Error e -> Printf.eprintf "Compilation failed: %s\n" e
+
+let () =
+  print_results "L*" (Lazy.force learned) 4 ;
+  compile_to_c ()

@@ -1,0 +1,10 @@
+(executables
+ (names alternating mod3 div7)
+ (public_names
+  transmogrifier.alternating
+  transmogrifier.mod3
+  transmogrifier.div7)
+ (libraries lstar unix str transmogrifier)
+ (flags
+  (:standard -w -26))
+ (package transmogrifier))

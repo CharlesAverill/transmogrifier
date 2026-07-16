@@ -1,0 +1,6 @@
+[submodule "vendor/lstar-rocq"]
+	path = vendor/lstar-rocq
+	url = https://github.com/CharlesAverill/lstar-rocq
+[submodule "vendor/compcert"]
+	path = vendor/compcert
+	url = https://github.com/AbsInt/compcert

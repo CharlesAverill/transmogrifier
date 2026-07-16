@@ -1,0 +1,104 @@
+(rocq.extraction
+ (prelude Extraction)
+ (extracted_modules
+  AST
+  Archi
+  Ascii
+  BinInt
+  BinNat
+  BinNums
+  BinPos
+  Binary
+  BinarySingleNaN
+  Bits
+  Clight
+  Cop
+  Coqlib
+  Csyntax
+  Ctypes
+  DecidableClass
+  Decimal
+  Defs
+  Errors
+  Floats
+  Hexadecimal
+  IEEE754_extra
+  IntDef
+  Integers
+  List0
+  Maps
+  Monads
+  Nat0
+  NatDef
+  Number
+  Operations
+  PosDef
+  Round
+  SpecFloat
+  String0
+  Values
+  ZArith_dec
+  Zaux
+  Zbits
+  Zpower
+  Bool
+  Datatypes
+  ListDef
+  Specif
+  dfa)
+ (theories Stdlib lstar compcert Flocq Transmogrifier))
+
+(library
+ (name transmogrifier)
+ (public_name transmogrifier)
+ (modules :standard \ printer)
+ (private_modules
+  Archi
+  Ascii
+  BinInt
+  BinNat
+  BinPos
+  Binary
+  BinarySingleNaN
+  Bits
+  Cop
+  Coqlib
+  Csyntax
+  Ctypes
+  DecidableClass
+  Decimal
+  Defs
+  Errors
+  Floats
+  Hexadecimal
+  IEEE754_extra
+  IntDef
+  Integers
+  List0
+  Maps
+  Nat0
+  NatDef
+  Number
+  Operations
+  PosDef
+  Round
+  SpecFloat
+  String0
+  Values
+  ZArith_dec
+  Zaux
+  Zbits
+  Zpower
+  Camlcoq
+  PrintCsyntax
+  PrintClight)
+ (libraries unix lstar))
+
+(rule
+ (copy ../vendor/compcert/lib/Camlcoq.ml Camlcoq.ml))
+
+(rule
+ (copy ../vendor/patched/PrintCsyntax.ml PrintCsyntax.ml))
+
+(rule
+ (copy ../vendor/patched/PrintClight.ml PrintClight.ml))

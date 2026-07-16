@@ -1,7 +1,8 @@
 (include_subdirs qualified)
 
 (rocq.theory
- (name PROJECT)
- (package PROJECT)
+ (name Transmogrifier)
+ (package transmogrifier)
  (modules :standard)
- (theories Stdlib))
+ (theories Stdlib lstar compcert Flocq)
+ (flags :standard -w -extraction-default-directory))
