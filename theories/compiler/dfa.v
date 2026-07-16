@@ -15,13 +15,7 @@ Open Scope Z_scope.
     \delta : compiled to
                 unsigned int delta(unsigned int q, unsigned int s);
     F      : compiled to
-                unsigned int accept(unsigned int q);
-
-    State indices are positions in [states], which is whatever order the
-    automaton's producer chose.  Nothing requires [initial] to sit at
-    position 0 -- a learner has no reason to put it there -- so the entry
-    index is computed by [q0_index] and exported.  A caller that assumes 0
-    will silently run the right automaton from the wrong start state. *)
+                unsigned int accept(unsigned int q); *)
 
 Module Type DFAType (s : Symbol).
   Record t (state : Type) : Type := {
@@ -94,13 +88,6 @@ Definition compiled_enum {X : Type} (l : list X) : list Clight.expr :=
 Definition compiled_sigma : list Clight.expr := compiled_enum s.enum.
 Definition compiled_Q     : list Clight.expr := compiled_enum dfa.(states _).
 
-(** The index of the initial state within [states].
-
-    The [None] branch is unreachable: [states_complete] instantiated at the
-    empty word gives [In initial states], so [index_of] always succeeds.  It
-    cannot be discharged here without a proof term, so it falls back to the
-    sink -- an out-of-range start fails loudly rather than silently running
-    from state 0. *)
 Definition q0_index (state_eq_dec : forall x y : state, {x = y} + {x <> y}) : Z :=
   match index_of state_eq_dec dfa.(initial _) dfa.(states _) 0 with
   | Some i => i
@@ -169,8 +156,7 @@ Definition compile_accept (ids : idents) : Clight.fundef :=
   |}.
 
 (** The initial state index, exported as a read-only global so that a caller
-    has something to start [delta] from.  Without this the emitted C is a
-    correct automaton under a state numbering the caller cannot see. *)
+    has something to start [delta] from. *)
 Definition compile_q0 (state_eq_dec : forall x y : state, {x = y} + {x <> y})
     : globvar type := {|
   gvar_info     := tuint;
