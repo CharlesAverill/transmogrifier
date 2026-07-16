@@ -30,7 +30,12 @@ dune build
 
 ## Example
 
-Consider the language of alternating bitstrings:  $$\{ w \in \{0, 1\}^* \mid \forall i \in \{1, \dots, |w|-1\}, w_i \neq w_{i+1} \}.$$
+Consider the language of alternating bitstrings:
+
+$$
+L = \{\, w \in \{0,1\}^* \mid \forall i \in \{1,\dots,|w|-1\},\; w_i \neq w_{i+1} \,\}.
+$$
+
 This language can be recognized by the following 4-state DFA:
 
 ![alternating DFA](vendor/alternating_1.png)
