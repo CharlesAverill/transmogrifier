@@ -211,3 +211,55 @@ module MakeDFA (S : Automata.Symbol) = struct
       ~extra:[("SYMBOL_ENUM", symbol_enum ()); ("OUTPUT_ENUM", output_enum ())]
       ~machine_name ~nstates ~template_fn ~out_fn
 end
+
+(* An NFA has no output alphabet -- acceptance is a set intersection, not an
+   output symbol -- so MakeNFA takes only the input alphabet. It reuses
+   MakeMoore's machinery by pairing S with a dummy one-element output, which is
+   never rendered: nfa.h.in has no @OUTPUT_ENUM@ placeholder.
+
+   The one genuinely new substitution is @NWORDS@, the width of a state set. *)
+module MakeNFA (S : Automata.Symbol) = struct
+  module O = struct
+    type t = unit
+
+    let eq_dec = ( = )
+
+    let enum = [()]
+
+    type str = t list
+
+    let string_of_t () = "unit"
+
+    let t_of_string : string -> (t, string) Datatypes.result = function
+      | "unit" -> Ok ()
+      | e -> Error ("Unrecognized unit " ^ e)
+  end
+
+  module MMoore = MakeMoore (S) (O)
+  include MMoore
+
+  (* ceil(nstates / 64), at least 1 -- must track [nwords] in
+     theories/compiler/nfa.v. *)
+  let nwords (nstates : int) : int =
+    if nstates <= 0 then 1 else max 1 ((nstates + 63) / 64)
+
+  let symbol_enum () =
+    MMoore.render_enum ~prefix:"SYM" ~type_name:"nfa_input_sym_t"
+      ~count_doc:"|Sigma|; step's out-of-range threshold"
+      (Stdlib.List.map S.string_of_t S.enum)
+
+  let fill ~(machine_name : string) ~(nstates : int) (template : string) :
+      string =
+    MMoore.fill
+      ~extra:
+        [ ("SYMBOL_ENUM", symbol_enum ())
+        ; ("NWORDS", string_of_int (nwords nstates)) ]
+      ~machine_name ~nstates template
+
+  let fill_file ~machine_name ~nstates ~template_fn ~out_fn =
+    MMoore.fill_file
+      ~extra:
+        [ ("SYMBOL_ENUM", symbol_enum ())
+        ; ("NWORDS", string_of_int (nwords nstates)) ]
+      ~machine_name ~nstates ~template_fn ~out_fn
+end
