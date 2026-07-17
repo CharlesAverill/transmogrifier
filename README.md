@@ -15,18 +15,25 @@ Currently-supported automata:
 # Clone
 git clone --recurse-submodules https://github.com/CharlesAverill/Transmogfrifier
 cd Transmogrifier
-git submodule update --init
 
 # Install Dependencies
 opam switch create rocq 4.14.3
 opam repo add rocq-released https://rocq-prover.org/opam/released && opam update
 opam pin add rocq-runtime 9.1.0
-opam pin add lstar-rocq git+https://github.com/CharlesAverill/lstar-rocq.git
 opam install . --deps-only
 
 # Build
 dune build
 ```
+
+## Correctness
+
+Verified against CompCert's Clight semantics in [`dfaproofs.v`](theories/transparency/dfaproofs.v):
+
+- `compile_delta_correct` - `delta(q_i, s_i)` evaluates to the index of `δ(q, s)`
+- `compile_delta_sink` - `delta` returns `|Q|` on out-of-range input
+- `compile_accept_correct` - `accept(q_i)` returns `1` iff `q \in F`
+- `compile_run_correct` - `run(w, |w|)` evaluates to the index of `δ*(q_0, w)`
 
 ## Example
 
@@ -40,7 +47,7 @@ This language can be recognized by the following 4-state DFA:
 
 ![alternating DFA](vendor/alternating_1.png)
 
-[`alternating.ml`](examples/alternating.ml) initializes a teacher for this language, initiates the learning loop, and generates a C program containing a reference to the initial state, the transition function, and the accept function at [`alternating.c`](examples/alternating.c):
+[`alternating.ml`](examples/alternating.ml) initializes a teacher for this language, initiates the learning loop, and generates a C program containing a reference to the initial state, the transition function, the accept function, and a run function at [`alternating.c`](examples/alternating.c):
 
 ```c
 unsigned long long delta(unsigned long long, unsigned long long);

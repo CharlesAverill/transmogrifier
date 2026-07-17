@@ -25,4 +25,5 @@
  (depends
   (dune (>= 3.21.0))
   (rocq-prover (>= 9.1.0))
-   coq-compcert))
+   coq-compcert
+   lstar-rocq))
