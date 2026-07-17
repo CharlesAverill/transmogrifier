@@ -44,6 +44,7 @@ Record idents : Type := {
   id_accept : ident;
   id_q0     : ident;
   id_table  : ident;
+  id_atable : ident;
   id_q      : ident;
   id_s      : ident;
   id_w      : ident;
@@ -58,13 +59,14 @@ Definition alloc_idents (base : ident) : idents := {|
   id_accept := 1 + base;
   id_q0     := 2 + base;
   id_table  := 3 + base;
-  id_q      := 4 + base;
-  id_s      := 5 + base;
-  id_w      := 6 + base;
-  id_len    := 7 + base;
-  id_i      := 8 + base;
-  id_run    := 9 + base;
-  id_main   := 10 + base
+  id_atable := 4 + base;
+  id_q      := 5 + base;
+  id_s      := 6 + base;
+  id_w      := 7 + base;
+  id_len    := 8 + base;
+  id_i      := 9 + base;
+  id_run    := 10 + base;
+  id_main   := 11 + base
 |}%positive.
 
 (* Types *)
@@ -182,18 +184,33 @@ Definition delta_type : type :=
 
 (* accept *)
 
-Definition eq_test (v : ident) (k : Z) : Clight.expr :=
-  Ebinop Oeq (Etempvar v tlong) (Econst_long (Int64.repr k) tlong) tuint.
+Definition accept_entry (q : state) : Z :=
+  if dfa.(accept _) q then 1 else 0.
 
+Definition atable_type : type := Tarray tuint nstates noattr.
+
+Definition atable_init : list init_data :=
+  map (fun '(_, q) => Init_int32 (Int.repr (accept_entry q))) state_table.
+
+Definition compile_atable : globvar type := {|
+  gvar_info     := atable_type;
+  gvar_init     := atable_init;
+  gvar_readonly := true;
+  gvar_volatile := false
+|}.
+
+(* _Bool accept(unsigned long long q) {
+     if (q < |Q|) return atable[q]; else return 0;
+   } *)
 Definition compile_accept (ids : idents) : Clight.fundef :=
   let body :=
-    fold_left (fun (acc : Clight.statement) '(q_idx, q) =>
-      if dfa.(accept _) q then
-        Clight.Sifthenelse (eq_test ids.(id_q) q_idx)
-          (Clight.Sreturn (Some (Econst_int Int.one tbool)))
-          acc
-      else acc
-    ) state_table (Clight.Sreturn (Some (Econst_int Int.zero tbool)))
+    Sifthenelse (lt_test ids.(id_q) nstates)
+      (Sreturn (Some
+        (Ederef
+          (Ebinop Oadd (Evar ids.(id_atable) atable_type) (Etempvar ids.(id_q) tlong)
+            (Tpointer tuint noattr))
+          tuint)))
+      (Sreturn (Some (Ecast (Econst_int Int.zero tuint) tbool)))
   in
   Internal {|
     fn_return   := tbool;
@@ -279,6 +296,7 @@ Definition compile_program (base : ident) : result Clight.program :=
   let ids := alloc_idents base in
   let defs : list (ident * globdef Clight.fundef type) :=
     [ (ids.(id_table),  Gvar (compile_table));
+      (ids.(id_atable), Gvar (compile_atable));
       (ids.(id_delta),  Gfun (compile_delta ids));
       (ids.(id_accept), Gfun (compile_accept ids));
       (ids.(id_q0),     Gvar (compile_q0));
@@ -286,7 +304,7 @@ Definition compile_program (base : ident) : result Clight.program :=
       (ids.(id_main),   Gfun (compile_main ids)) ] in
   match Ctypes.make_program [] defs
           [ids.(id_delta); ids.(id_accept); ids.(id_q0); ids.(id_table);
-           ids.(id_run); ids.(id_main)]
+           ids.(id_atable); ids.(id_run); ids.(id_main)]
           ids.(id_main) with
   | Errors.OK p => return p
   | Errors.Error msg => fail E_msg "make_program failed"

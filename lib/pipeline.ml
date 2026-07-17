@@ -51,7 +51,8 @@ struct
   reg 1 "accept" ;
   reg 2 "q0" ;
   reg 3 "table" ;
-  reg 9 "run"
+  reg 4 "atable" ;
+  reg 10 "run"
 
   (** Compile the learned DFA to Clight and print it to [output_fn] or [stdout]
 

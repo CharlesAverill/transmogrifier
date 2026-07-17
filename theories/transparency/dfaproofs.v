@@ -162,7 +162,7 @@ Variable state_eq_dec : forall (x y : state), {x = y} + {x <> y}.
 
 (** Well-formedness: the state and symbol enumerations fit in [tlong] *)
 Variable states_bounded : Z.of_nat (length dfa.(states _)) < Int64.modulus.
-Variable syms_bounded   : Z.of_nat (length s.enum) < Int64.modulus.
+Variable syms_bounded   : 0 < Z.of_nat (length s.enum) < Int64.modulus.
 
 Variable base : ident.
 Variable p : Clight.program.
@@ -175,6 +175,7 @@ Definition ids : idents := alloc_idents base.
 Lemma compile_program_defs :
   prog_defs p =
     [ (ids.(id_table),  Gvar (compile_table state dfa state_eq_dec));
+      (ids.(id_atable), Gvar (compile_atable state dfa));
       (ids.(id_delta),  Gfun (compile_delta state dfa ids));
       (ids.(id_accept), Gfun (compile_accept state dfa ids));
       (ids.(id_q0),     Gvar (compile_q0 state dfa state_eq_dec));
@@ -201,6 +202,7 @@ Qed.
 Lemma compile_program_defs_ast :
   AST.prog_defs (program_of_program p) =
     [ (ids.(id_table),  Gvar (compile_table state dfa state_eq_dec));
+      (ids.(id_atable), Gvar (compile_atable state dfa));
       (ids.(id_delta),  Gfun (compile_delta state dfa ids));
       (ids.(id_accept), Gfun (compile_accept state dfa ids));
       (ids.(id_q0),     Gvar (compile_q0 state dfa state_eq_dec));
@@ -215,7 +217,7 @@ Proof.
   unfold prog_defmap. rewrite compile_program_defs_ast.
   apply PTree_Properties.of_list_norepet.
     rewrite <- compile_program_defs. apply global_idents_norepet.
-  right. now left.
+  right. right. now left.
 Qed.
 
 Lemma find_delta_def :
@@ -255,35 +257,6 @@ Proof.
   rewrite <- Int64.unsigned_repr by (unfold Int64.max_unsigned; lia).
   rewrite <- Int64.unsigned_repr at 1 by (unfold Int64.max_unsigned; lia).
   now rewrite H1.
-Qed.
-
-Lemma eval_eq_test_true : forall e le m v k,
-  le ! v = Some (Vlong (Int64.repr k)) ->
-  eval_expr ge e le m (eq_test v k) (Vint Int.one).
-Proof.
-  intros. unfold eq_test. econstructor.
-    econstructor. eassumption.
-    econstructor.
-  simpl.
-  unfold sem_cmp, classify_cmp, tlong, sem_binarith, sem_cast,
-         classify_cast, classify_binarith. simpl.
-  destruct Archi.ptr64; simpl;
-  unfold Val.of_bool; now rewrite Int64.eq_true.
-Qed.
-
-Lemma eval_eq_test_false : forall e le m v k j,
-  le ! v = Some (Vlong (Int64.repr j)) ->
-  0 <= j < Int64.modulus -> 0 <= k < Int64.modulus ->
-  j <> k ->
-  eval_expr ge e le m (eq_test v k) (Vint Int.zero).
-Proof.
-  intros. unfold eq_test. econstructor.
-    econstructor. eassumption.
-    econstructor.
-  simpl. unfold sem_cmp, sem_binarith, classify_binarith, tlong,
-                sem_cast, classify_cast, classify_cmp. simpl.
-  destruct Archi.ptr64; simpl;
-    now rewrite Int64.eq_false by (intro X; apply H2; eapply repr_inj_in_range; eauto).
 Qed.
 
 Lemma bool_val_one : forall m, bool_val (Vint Int.one) tuint m = Some true.
@@ -452,6 +425,26 @@ Proof. clear.
     eapply IHil; eauto.
 Qed.
 
+Lemma init_data_list_nth_load_int32 :
+  forall (F V : Type) (ge' : Genv.t F V) b il n v m base_ofs,
+  (forall id, In id il -> exists x, id = Init_int32 x) ->
+  Genv.load_store_init_data ge' m b base_ofs il ->
+  nth_error il n = Some (Init_int32 v) ->
+  Mem.load Mint32 m b (base_ofs + 4 * Z.of_nat n) = Some (Vint v).
+Proof. clear.
+  induction il; intros n v m base_ofs Hall Hlsid Hnth.
+    now destruct n.
+  destruct n; cbn - [Z.of_nat Z.mul] in *.
+  - inversion Hnth; subst; clear Hnth.
+    destruct Hlsid as (Hload & _).
+    now rewrite Z.mul_0_r, Z.add_0_r.
+  - destruct (Hall a) as (x & Hx); [now left|]. subst a.
+    destruct Hlsid as (_ & Hrest). cbn - [Z.of_nat] in Hrest.
+    replace (base_ofs + 4 * Z.of_nat (S n))
+      with ((base_ofs + 4) + 4 * Z.of_nat n) by lia.
+    eapply IHil; eauto.
+Qed.
+
 Lemma table_init_all_int64 : forall id,
   In id (table_init state dfa state_eq_dec) -> exists x, id = Init_int64 x.
 Proof.
@@ -484,6 +477,23 @@ Proof.
     eapply init_data_list_nth_load; eauto.
     apply table_init_all_int64.
   - unfold Ptrofs.max_unsigned. unfold nstates, nsyms in Hk. lia.
+Qed.
+
+Lemma atable_entry_correct : forall q q_idx,
+  sidx q = Some q_idx ->
+  nth_error (atable_init state dfa) (Z.to_nat q_idx)
+  = Some (Init_int32 (Int.repr (accept_entry state dfa q))).
+Proof.
+  intros q q_idx Hq.
+  assert (Hqb : 0 <= q_idx < Z.of_nat (length dfa.(states _)))
+    by (unfold sidx in Hq; eauto using index_of_bounds).
+  unfold atable_init, state_table. rewrite nth_error_map.
+  destruct (enumerate_nth_error_pair _ (states state dfa) q_idx Hqb)
+    as (q' & Hpair & Hnth).
+  unfold sidx in Hq. apply index_of_nth_error in Hq.
+  rewrite Z.sub_0_r in Hq. rewrite Hq in Hnth.
+  inversion Hnth; subst.
+  now rewrite Hpair.
 Qed.
 
 Lemma alloc_idents_norepet : forall base,
@@ -675,77 +685,128 @@ Proof.
   - reflexivity.
 Qed.
 
-(** accept is correct on valid indices *)
-
-Lemma accept_tree_exec : forall ids e le m tbl acc q q_idx,
-  le ! (ids.(id_q)) = Some (Vlong (Int64.repr q_idx)) ->
-  sidx q = Some q_idx ->
-  In (q_idx, q) tbl ->
-  (forall i x, In (i, x) tbl -> 0 <= i < Int64.modulus) ->
-  list_norepet (map fst tbl) ->
-  exec_stmt function_entry2 ge e le m acc E0 le m
-    (Out_return (Some (Vint Int.zero, tbool))) ->
-  exec_stmt function_entry2 ge e le m
-    (fold_left (fun (acc : statement) '(qi, qq) =>
-       if dfa.(accept _) qq
-       then Sifthenelse (eq_test ids.(id_q) qi)
-              (Sreturn (Some (Econst_int Int.one tbool))) acc
-       else acc) tbl acc)
-    E0 le m (Out_return (Some (Vint (if dfa.(accept _) q then Int.one else Int.zero), tbool))).
+Lemma atable_init_all_int32 : forall id,
+  In id (atable_init state dfa) -> exists x, id = Init_int32 x.
 Proof.
-  induction tbl; intros; simpl in *. contradiction.
-  inversion H3; subst; clear H3.
-  destruct H1; subst.
-  - apply fold_left_preserves_head.
-    destruct accept.
-      econstructor.
-        eapply eval_eq_test_true; eauto.
-        apply bool_val_one.
-        simpl. econstructor. econstructor.
-      assumption.
-    intros. destruct b, accept in |- *; [|assumption].
-    econstructor.
-      eapply eval_eq_test_false; eauto.
-      intro. subst. apply H7. simpl.
-        change z with (fst (z, s)). now apply in_map.
-        apply bool_val_zero.
-        assumption.
-  - destruct a as (qi & qq). assert (Hne : qi <> q_idx).
-      { intro. subst. apply H7. simpl.
-        change q_idx with (fst (q_idx, q)).
-        now apply in_map. }
-    destruct accept in |- *.
-      eapply IHtbl; eauto.
-        econstructor.
-          eapply eval_eq_test_false; eauto.
-          apply bool_val_zero.
-          assumption.
-    eapply IHtbl; eauto.
+  intros. unfold atable_init in H.
+  apply in_map_iff in H. destruct H as ((qi & q) & Heq & _). subst. eauto.
 Qed.
 
-Lemma compile_accept_correct :
-  forall base q q_idx m,
-    sidx q = Some q_idx ->
-    eval_funcall function_entry2 ge m
-      (compile_accept state dfa (alloc_idents base))
-      [Vlong (Int64.repr q_idx)] E0 m
-      (Vint (if dfa.(accept _) q then Int.one else Int.zero)).
+Lemma find_atable :
+  exists b,
+    Genv.find_symbol ge ids.(id_atable) = Some b /\
+    Genv.find_def ge b = Some (Gvar (compile_atable state dfa)).
 Proof.
-  intros. unfold compile_accept.
+  apply Genv.find_def_symbol.
+  apply prog_defmap_norepet.
+    apply global_idents_norepet.
+  pose proof compile_program_defs as Hdefs.
+  change (AST.prog_defs p) with (prog_defs p).
+  rewrite Hdefs. right. now left.
+Qed.
+
+Lemma atable_in_mem : forall b k v,
+  Genv.find_symbol ge ids.(id_atable) = Some b ->
+  nth_error (atable_init state dfa) (Z.to_nat k) = Some (Init_int32 v) ->
+  0 <= k < nstates state dfa ->
+  Mem.loadv Mint32 m0 (Vptr b (Ptrofs.repr (4 * k))) = Some (Vint v).
+Proof.
+  intros b k v Hsym Hnth Hk.
+  destruct find_atable as (b' & Hsym' & Hdef).
+  assert (b' = b) by congruence. subst b'.
+  assert (Hvi : Genv.find_var_info ge b = Some (compile_atable state dfa)).
+    { apply Genv.find_var_info_iff. exact Hdef. }
+  destruct (Genv.init_mem_characterization _ _ Hvi Hinit)
+    as (_ & _ & Hlsid & _).
+  specialize (Hlsid eq_refl).
+  cbn [Mem.loadv].
+  rewrite Ptrofs.unsigned_repr.
+  - replace (4 * k) with (0 + 4 * Z.of_nat (Z.to_nat k)) by lia.
+    eapply init_data_list_nth_load_int32; eauto.
+    apply atable_init_all_int32.
+  - assert (Hq8 : 8 * Z.of_nat (Datatypes.length (states state dfa))
+                  <= 8 * (Z.of_nat (Datatypes.length (states state dfa))
+                          * Z.of_nat (Datatypes.length s.enum))) by nia.
+    unfold Ptrofs.max_unsigned, DC.nstates in *. lia.
+Qed.
+
+Lemma ptr_add_normalize_gen : forall sz ofs i,
+  0 < sz -> 0 <= ofs -> 0 <= i ->
+  ofs + sz * i < Ptrofs.modulus ->
+  sz < Ptrofs.modulus ->
+  Ptrofs.add (Ptrofs.repr ofs)
+    (Ptrofs.mul (Ptrofs.repr sz) (Ptrofs.of_int64 (Int64.repr i)))
+  = Ptrofs.repr (ofs + sz * i).
+Proof.
+  intros sz ofs i Hsz Hofs Hi Hbound Hszb.
+  pose proof ptrofs_le_int64.
+  assert (Hib : i < Ptrofs.modulus) by nia.
+  unfold Ptrofs.add, Ptrofs.mul, Ptrofs.of_int64.
+  rewrite Int64.unsigned_repr by (unfold Int64.max_unsigned; lia).
+  repeat rewrite Ptrofs.unsigned_repr_eq.
+  rewrite (Zmod_small ofs) by lia.
+  rewrite (Zmod_small i) by lia.
+  rewrite (Zmod_small sz) by lia.
+  now rewrite (Zmod_small (sz * i)) by nia.
+Qed.
+
+Lemma accept_entry_val : forall q,
+  Int.repr (accept_entry state dfa q) = (if dfa.(accept _) q then Int.one else Int.zero).
+Proof. intros. unfold accept_entry. destruct accept; reflexivity. Qed.
+
+Lemma compile_accept_correct : forall q q_idx,
+  sidx q = Some q_idx ->
+  eval_funcall function_entry2 ge m0
+    (compile_accept state dfa ids)
+    [Vlong (Int64.repr q_idx)] E0 m0
+    (Vint (if dfa.(accept _) q then Int.one else Int.zero)).
+Proof.
+  intros q q_idx Hq.
+  destruct find_atable as (ab & Hsym & _).
+  assert (Hqb : 0 <= q_idx < DC.nstates state dfa)
+    by (unfold sidx in Hq; apply index_of_bounds in Hq; unfold DC.nstates; lia).
   econstructor.
-  - econstructor; cbn - [Pos.succ Pos.add]; try solve [constructor].
+  - econstructor; cbn - [Pos.add]; try solve [constructor].
       constructor. now intro. constructor.
       now repeat intro.
-  - cbn [fn_body].
-    eapply accept_tree_exec; eauto.
-    + cbn. now rewrite PTree.gss.
-    + eauto using enumerate_spec.
-    + intros. pose proof (enumerate_In_bounds _ _ _ _ H0). lia.
-    + apply enumerate_index_norepet.
-    + eapply exec_Sreturn_some. econstructor.
-  - cbn. split. discriminate.
-    destruct accept eqn:E. now rewrite Int.eq_false.
-    now rewrite Int.eq_true.
+  - cbn [fn_body]. econstructor.
+    + eapply eval_lt_test_gen with (j := q_idx) (bv := Int.one).
+      * cbn - [Pos.add]. apply PTree.gss.
+      * pose proof nstates_bound. unfold Int64.max_unsigned in *. lia.
+      * pose proof nstates_bound. unfold Int64.max_unsigned in *. lia.
+      * now rewrite (proj2 (Z.ltb_lt _ _)) by lia.
+    + apply bool_val_one_int.
+    + eapply exec_Sreturn_some.
+      eapply eval_Elvalue.
+      * econstructor. econstructor.
+        -- eapply eval_Elvalue.
+             eapply eval_Evar_global.
+               apply PTree.gempty.
+               exact Hsym.
+             eapply deref_loc_reference. reflexivity.
+        -- econstructor. cbn - [Pos.add]. apply PTree.gss.
+        -- cbn. unfold sem_add, classify_add, atable_type, tbool, tlong. cbn.
+           destruct Archi.ptr64 eqn:E; [|discriminate].
+           reflexivity.
+      * eapply deref_loc_value with (chunk := Mint32).
+          reflexivity.
+        change Ptrofs.zero with (Ptrofs.repr 0).
+        rewrite ptr_add_normalize_gen with (sz := 4); try lia.
+        rewrite Z.add_0_l.
+          eapply atable_in_mem; eauto using atable_entry_correct.
+          unfold DC.nstates in *.
+        assert (Hq8 : 8 * Z.of_nat (Datatypes.length (states state dfa))
+                <= 8 * (Z.of_nat (Datatypes.length (states state dfa))
+                        * Z.of_nat (Datatypes.length s.enum)))
+            by nia.
+          lia.
+        assert (Hq8 : 8 * DC.nstates state dfa
+                            <= 8 * (DC.nstates state dfa * DC.nsyms)) by
+                (unfold DC.nstates, DC.nsyms in *; nia).
+              unfold DC.nstates, DC.nsyms in *; lia.
+  - cbn. split. discriminate. unfold accept_entry. destruct accept.
+      now rewrite Int.eq_false.
+      now rewrite Int.eq_true.
   - reflexivity.
 Qed.
 

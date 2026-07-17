@@ -1,55 +1,49 @@
 unsigned long long delta(unsigned long long, unsigned long long);
 _Bool accept(unsigned long long);
 unsigned long long run(unsigned long long *, unsigned long long);
-int $11(void);
+int $12(void);
 unsigned long long const table[8] = { 2LL, 1LL, 1LL, 1LL, 1LL, 0LL, 2LL, 0LL,
   };
 
-unsigned long long delta(unsigned long long $5, unsigned long long $6)
+unsigned int const atable[4] = { 1, 0, 1, 1, };
+
+unsigned long long delta(unsigned long long $6, unsigned long long $7)
 {
-  if ($5 < 4LLU & $6 < 2LLU) {
-    return *(table + ($5 * 2LLU + $6));
+  if ($6 < 4LLU & $7 < 2LLU) {
+    return *(table + ($6 * 2LLU + $7));
   } else {
     return 4LLU;
   }
 }
 
-_Bool accept(unsigned long long $5)
+_Bool accept(unsigned long long $6)
 {
-  if ($5 == 3LLU) {
-    return 1;
+  if ($6 < 4LLU) {
+    return *(atable + $6);
   } else {
-    if ($5 == 2LLU) {
-      return 1;
-    } else {
-      if ($5 == 0LLU) {
-        return 1;
-      } else {
-        return 0;
-      }
-    }
+    return (_Bool) 0U;
   }
 }
 
 unsigned long long const q0 = 3LL;
 
-unsigned long long run(unsigned long long *$7, unsigned long long $8)
+unsigned long long run(unsigned long long *$8, unsigned long long $9)
 {
-  register unsigned long long $9;
-  register unsigned long long $5;
-  $9 = 0LLU;
-  $5 = 3LLU;
+  register unsigned long long $10;
+  register unsigned long long $6;
+  $10 = 0LLU;
+  $6 = 3LLU;
   while (1) {
-    if (! ($9 < $8)) {
+    if (! ($10 < $9)) {
       break;
     }
-    $5 = delta($5, *($7 + $9));
-    $9 = $9 + 1LLU;
+    $6 = delta($6, *($8 + $10));
+    $10 = $10 + 1LLU;
   }
-  return $5;
+  return $6;
 }
 
-int $11(void)
+int $12(void)
 {
   return 0;
 }

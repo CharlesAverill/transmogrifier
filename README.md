@@ -53,55 +53,49 @@ This language can be recognized by the following 4-state DFA:
 unsigned long long delta(unsigned long long, unsigned long long);
 _Bool accept(unsigned long long);
 unsigned long long run(unsigned long long *, unsigned long long);
-int $11(void);
+int $12(void);
 unsigned long long const table[8] = { 2LL, 1LL, 1LL, 1LL, 1LL, 0LL, 2LL, 0LL,
   };
 
-unsigned long long delta(unsigned long long $5, unsigned long long $6)
+unsigned int const atable[4] = { 1, 0, 1, 1, };
+
+unsigned long long delta(unsigned long long $6, unsigned long long $7)
 {
-  if ($5 < 4LLU & $6 < 2LLU) {
-    return *(table + ($5 * 2LLU + $6));
+  if ($6 < 4LLU & $7 < 2LLU) {
+    return *(table + ($6 * 2LLU + $7));
   } else {
     return 4LLU;
   }
 }
 
-_Bool accept(unsigned long long $5)
+_Bool accept(unsigned long long $6)
 {
-  if ($5 == 3LLU) {
-    return 1;
+  if ($6 < 4LLU) {
+    return *(atable + $6);
   } else {
-    if ($5 == 2LLU) {
-      return 1;
-    } else {
-      if ($5 == 0LLU) {
-        return 1;
-      } else {
-        return 0;
-      }
-    }
+    return (_Bool) 0U;
   }
 }
 
 unsigned long long const q0 = 3LL;
 
-unsigned long long run(unsigned long long *$7, unsigned long long $8)
+unsigned long long run(unsigned long long *$8, unsigned long long $9)
 {
-  register unsigned long long $9;
-  register unsigned long long $5;
-  $9 = 0LLU;
-  $5 = 3LLU;
+  register unsigned long long $10;
+  register unsigned long long $6;
+  $10 = 0LLU;
+  $6 = 3LLU;
   while (1) {
-    if (! ($9 < $8)) {
+    if (! ($10 < $9)) {
       break;
     }
-    $5 = delta($5, *($7 + $9));
-    $9 = $9 + 1LLU;
+    $6 = delta($6, *($8 + $10));
+    $10 = $10 + 1LLU;
   }
-  return $5;
+  return $6;
 }
 
-int $11(void)
+int $12(void)
 {
   return 0;
 }
@@ -145,54 +139,50 @@ Disassembly of section .text:
   50:   48 83 ec 08             sub    $0x8,%rsp
   54:   48 8d 44 24 10          lea    0x10(%rsp),%rax
   59:   48 89 04 24             mov    %rax,(%rsp)
-  5d:   48 83 ff 03             cmp    $0x3,%rdi
-  61:   74 1e                   je     81 <accept+0x31>
-  63:   48 83 ff 02             cmp    $0x2,%rdi
-  67:   74 11                   je     7a <accept+0x2a>
-  69:   48 83 ff 00             cmp    $0x0,%rdi
-  6d:   74 04                   je     73 <accept+0x23>
-  6f:   31 c0                   xor    %eax,%eax
-  71:   eb 13                   jmp    86 <accept+0x36>
-  73:   b8 01 00 00 00          mov    $0x1,%eax
-  78:   eb 0c                   jmp    86 <accept+0x36>
-  7a:   b8 01 00 00 00          mov    $0x1,%eax
-  7f:   eb 05                   jmp    86 <accept+0x36>
-  81:   b8 01 00 00 00          mov    $0x1,%eax
-  86:   48 83 c4 08             add    $0x8,%rsp
-  8a:   c3                      ret
-  8b:   0f 1f 44 00 00          nopl   0x0(%rax,%rax,1)
+  5d:   48 83 ff 04             cmp    $0x4,%rdi
+  61:   73 15                   jae    78 <accept+0x28>
+  63:   48 8d 05 00 00 00 00    lea    0x0(%rip),%rax        # 6a <accept+0x1a>
+  6a:   8b 04 b8                mov    (%rax,%rdi,4),%eax
+  6d:   83 f8 00                cmp    $0x0,%eax
+  70:   0f 95 c0                setne  %al
+  73:   0f b6 c0                movzbl %al,%eax
+  76:   eb 02                   jmp    7a <accept+0x2a>
+  78:   31 c0                   xor    %eax,%eax
+  7a:   48 83 c4 08             add    $0x8,%rsp
+  7e:   c3                      ret
+  7f:   90                      nop
 
-0000000000000090 <run>:
-  90:   48 83 ec 28             sub    $0x28,%rsp
-  94:   48 8d 44 24 30          lea    0x30(%rsp),%rax
-  99:   48 89 04 24             mov    %rax,(%rsp)
-  9d:   48 89 5c 24 08          mov    %rbx,0x8(%rsp)
-  a2:   48 89 6c 24 10          mov    %rbp,0x10(%rsp)
-  a7:   4c 89 64 24 18          mov    %r12,0x18(%rsp)
-  ac:   48 89 f3                mov    %rsi,%rbx
-  af:   48 89 fd                mov    %rdi,%rbp
-  b2:   4d 31 e4                xor    %r12,%r12
-  b5:   bf 03 00 00 00          mov    $0x3,%edi
-  ba:   49 39 dc                cmp    %rbx,%r12
-  bd:   73 14                   jae    d3 <run+0x43>
-  bf:   4a 8b 74 e5 00          mov    0x0(%rbp,%r12,8),%rsi
-  c4:   e8 00 00 00 00          call   c9 <run+0x39>
-  c9:   48 89 c7                mov    %rax,%rdi
-  cc:   4d 8d 64 24 01          lea    0x1(%r12),%r12
-  d1:   eb e7                   jmp    ba <run+0x2a>
-  d3:   48 89 f8                mov    %rdi,%rax
-  d6:   48 8b 5c 24 08          mov    0x8(%rsp),%rbx
-  db:   48 8b 6c 24 10          mov    0x10(%rsp),%rbp
-  e0:   4c 8b 64 24 18          mov    0x18(%rsp),%r12
-  e5:   48 83 c4 28             add    $0x28,%rsp
-  e9:   c3                      ret
-  ea:   66 0f 1f 44 00 00       nopw   0x0(%rax,%rax,1)
+0000000000000080 <run>:
+  80:   48 83 ec 28             sub    $0x28,%rsp
+  84:   48 8d 44 24 30          lea    0x30(%rsp),%rax
+  89:   48 89 04 24             mov    %rax,(%rsp)
+  8d:   48 89 5c 24 08          mov    %rbx,0x8(%rsp)
+  92:   48 89 6c 24 10          mov    %rbp,0x10(%rsp)
+  97:   4c 89 64 24 18          mov    %r12,0x18(%rsp)
+  9c:   48 89 f3                mov    %rsi,%rbx
+  9f:   48 89 fd                mov    %rdi,%rbp
+  a2:   4d 31 e4                xor    %r12,%r12
+  a5:   bf 03 00 00 00          mov    $0x3,%edi
+  aa:   49 39 dc                cmp    %rbx,%r12
+  ad:   73 14                   jae    c3 <run+0x43>
+  af:   4a 8b 74 e5 00          mov    0x0(%rbp,%r12,8),%rsi
+  b4:   e8 00 00 00 00          call   b9 <run+0x39>
+  b9:   48 89 c7                mov    %rax,%rdi
+  bc:   4d 8d 64 24 01          lea    0x1(%r12),%r12
+  c1:   eb e7                   jmp    aa <run+0x2a>
+  c3:   48 89 f8                mov    %rdi,%rax
+  c6:   48 8b 5c 24 08          mov    0x8(%rsp),%rbx
+  cb:   48 8b 6c 24 10          mov    0x10(%rsp),%rbp
+  d0:   4c 8b 64 24 18          mov    0x18(%rsp),%r12
+  d5:   48 83 c4 28             add    $0x28,%rsp
+  d9:   c3                      ret
+  da:   66 0f 1f 44 00 00       nopw   0x0(%rax,%rax,1)
 
-00000000000000f0 <$11>:
-  f0:   48 83 ec 08             sub    $0x8,%rsp
-  f4:   48 8d 44 24 10          lea    0x10(%rsp),%rax
-  f9:   48 89 04 24             mov    %rax,(%rsp)
-  fd:   31 c0                   xor    %eax,%eax
-  ff:   48 83 c4 08             add    $0x8,%rsp
- 103:   c3                      ret
+00000000000000e0 <$12>:
+  e0:   48 83 ec 08             sub    $0x8,%rsp
+  e4:   48 8d 44 24 10          lea    0x10(%rsp),%rax
+  e9:   48 89 04 24             mov    %rax,(%rsp)
+  ed:   31 c0                   xor    %eax,%eax
+  ef:   48 83 c4 08             add    $0x8,%rsp
+  f3:   c3                      ret
 ```
