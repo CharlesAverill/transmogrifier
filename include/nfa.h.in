@@ -48,14 +48,14 @@ extern const nfa_state_t final[NFA_NWORDS];
 /* ---- Functions ---- */
 
 /**
- * step(cur, a, next): next := the union of the a-rows of every state in cur.
+ * delta(cur, a, next): next := the union of the a-rows of every state in cur.
  *
  * cur and next must not alias: the body zeroes next before reading the rows.
  * An out-of-range symbol leaves next empty.
  *
  * Verified: compile_step_correct (theories/transparency/nfaproofs.v).
  */
-extern void step(nfa_state_t *cur, nfa_symbol_t a, nfa_state_t *next);
+extern void delta(nfa_state_t *cur, nfa_symbol_t a, nfa_state_t *next);
 
 /**
  * accept(cur): whether cur intersects the accepting set.
