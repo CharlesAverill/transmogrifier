@@ -33,12 +33,12 @@ Module Type NFAType (s : Symbol).
             In q states
     }.
 
-  Definition step {state : Type} (n : t state) (qs : list state) (a : s.t)
-      : list state :=
-      flat_map (fun q => n.(transition state) q a) qs.
+  Definition step {state : Type} (trans : state -> s.t -> list state)
+      (qs : list state) (a : s.t) : list state :=
+      flat_map (fun q => trans q a) qs.
 
   Definition run {state : Type} (n : t state) (w : list s.t) : list state :=
-      fold_left (step n) w n.(initial state).
+      fold_left (step n.(transition state)) w n.(initial state).
 
   Parameter run_in_states : forall {state : Type} (n : t state) (w : list s.t) q,
       In q (run n w) -> In q (states state n).
