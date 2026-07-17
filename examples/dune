@@ -1,9 +1,6 @@
 (executables
- (names alternating mod3 div7)
- (public_names
-  transmogrifier.alternating
-  transmogrifier.mod3
-  transmogrifier.div7)
+ (names alternating mod3 div7 traffic)
+ (public_names dfa.alternating dfa.mod3 dfa.div7 moore.traffic)
  (libraries lstar unix str transmogrifier)
  (flags
   (:standard -w -26))

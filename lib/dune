@@ -45,7 +45,8 @@
   Datatypes
   ListDef
   Specif
-  dfa)
+  dfa
+  moore)
  (theories Stdlib lstar compcert Flocq Transmogrifier))
 
 (library

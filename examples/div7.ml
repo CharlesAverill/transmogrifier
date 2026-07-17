@@ -123,16 +123,16 @@ let learned : __ Teacher.D.t Lazy.t = lazy (Lstar.lstar ())
 (** [LstarLearner] exposes [lstar]; [LEARNER] asks for [learn].  This adapter
     also pins the result to [learned] so the compiled automaton is exactly
     the one printed above. *)
-module LstarAdapter : LEARNER =
-functor (T : DFATEACHER) ->
-struct
-  let learn () : __ T.D.t = Obj.magic (Lazy.force learned)
-end
+module LstarAdapter : DFALEARNER =
+functor
+  (T : DFATEACHER)
+  ->
+  struct
+    let learn () : __ T.D.t = Obj.magic (Lazy.force learned)
+  end
 
 (** Learn-then-compile pipeline for this teacher *)
-module P = Pipeline (S) (Teacher) (LstarAdapter)
-
-
+module P = DFAPipeline (S) (Teacher) (LstarAdapter)
 
 module DP = DFAPrinter (Teacher)
 
@@ -217,8 +217,10 @@ let compile_to_c () =
   let out = "examples/div7.c" in
   Printf.printf "\n=== Compiling to C ===\n" ;
   match P.compile out with
-  | Stdlib.Ok () -> Printf.printf "Wrote %s\n" out
-  | Stdlib.Error e -> Printf.eprintf "Compilation failed: %s\n" e
+  | Stdlib.Ok () ->
+      Printf.printf "Wrote %s\n" out
+  | Stdlib.Error e ->
+      Printf.eprintf "Compilation failed: %s\n" e
 
 let () =
   print_results "L*" (Lazy.force learned) ;
