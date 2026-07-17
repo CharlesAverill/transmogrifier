@@ -29,8 +29,9 @@ Module Type DFAType (s : Symbol).
   Definition run {state : Type} (dfa : t state) (s : list s.t) : state :=
         fold_left dfa.(transition state) s dfa.(initial state).
 
-  Parameter run_in_states : forall {state : Type} (d : t state) (w : list s.t),
+  Theorem run_in_states : forall {state : Type} (d : t state) (w : list s.t),
         In (run d w) (states state d).
+  Proof. apply states_complete. Qed.
 End DFAType.
 
 Module DFACompiler (s : Symbol) (DFA : DFAType s).

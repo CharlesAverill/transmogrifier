@@ -31,8 +31,9 @@ Module Type MooreType (s : Symbol) (O : Output).
     Definition run {state : Type} (m : t state) (w : list s.t) : state :=
         fold_left m.(transition state) w m.(initial state).
 
-    Parameter run_in_states : forall {state : Type} (m : t state) (w : list s.t),
+    Theorem run_in_states : forall {state : Type} (m : t state) (w : list s.t),
         In (run m w) (states state m).
+    Proof. apply states_complete. Qed.
 End MooreType.
 
 Module MooreCompiler (s : Symbol) (O : Output) (Moore : MooreType s O).
