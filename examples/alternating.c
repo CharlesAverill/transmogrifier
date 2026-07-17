@@ -1,75 +1,57 @@
-unsigned int delta(unsigned int, unsigned int);
-unsigned int accept(unsigned int);
-unsigned int delta(unsigned int $4, unsigned int $5)
+unsigned long long delta(unsigned long long, unsigned long long);
+_Bool accept(unsigned long long);
+unsigned long long run(unsigned long long *, unsigned long long);
+int $11(void);
+unsigned long long const table[8] = { 2LL, 1LL, 1LL, 1LL, 1LL, 0LL, 2LL, 0LL,
+  };
+
+unsigned long long delta(unsigned long long $5, unsigned long long $6)
 {
-  if ($4 == 3U) {
-    if ($5 == 1U) {
-      return 0U;
-    } else {
-      if ($5 == 0U) {
-        return 2U;
-      } else {
-        return 4U;
-      }
-    }
+  if ($5 < 4LLU & $6 < 2LLU) {
+    return *(table + ($5 * 2LLU + $6));
   } else {
-    if ($4 == 2U) {
-      if ($5 == 1U) {
-        return 0U;
-      } else {
-        if ($5 == 0U) {
-          return 1U;
-        } else {
-          return 4U;
-        }
-      }
+    return 4LLU;
+  }
+}
+
+_Bool accept(unsigned long long $5)
+{
+  if ($5 == 3LLU) {
+    return 1;
+  } else {
+    if ($5 == 2LLU) {
+      return 1;
     } else {
-      if ($4 == 1U) {
-        if ($5 == 1U) {
-          return 1U;
-        } else {
-          if ($5 == 0U) {
-            return 1U;
-          } else {
-            return 4U;
-          }
-        }
+      if ($5 == 0LLU) {
+        return 1;
       } else {
-        if ($4 == 0U) {
-          if ($5 == 1U) {
-            return 1U;
-          } else {
-            if ($5 == 0U) {
-              return 2U;
-            } else {
-              return 4U;
-            }
-          }
-        } else {
-          return 4U;
-        }
+        return 0;
       }
     }
   }
 }
 
-unsigned int accept(unsigned int $4)
+unsigned long long const q0 = 3LL;
+
+unsigned long long run(unsigned long long *$7, unsigned long long $8)
 {
-  if ($4 == 3U) {
-    return 1U;
-  } else {
-    if ($4 == 2U) {
-      return 1U;
-    } else {
-      if ($4 == 0U) {
-        return 1U;
-      } else {
-        return 0U;
-      }
+  register unsigned long long $9;
+  register unsigned long long $5;
+  $9 = 0LLU;
+  $5 = 3LLU;
+  while (1) {
+    if (! ($9 < $8)) {
+      break;
     }
+    $5 = delta($5, *($7 + $9));
+    $9 = $9 + 1LLU;
   }
+  return $5;
 }
 
-unsigned int const q0 = 3;
+int $11(void)
+{
+  return 0;
+}
 
 

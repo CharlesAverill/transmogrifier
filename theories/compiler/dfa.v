@@ -43,24 +43,28 @@ Record idents : Type := {
   id_delta  : ident;
   id_accept : ident;
   id_q0     : ident;
+  id_table  : ident;
   id_q      : ident;
   id_s      : ident;
   id_w      : ident;
   id_len    : ident;
   id_i      : ident;
-  id_run    : ident
+  id_run    : ident;
+  id_main   : ident
 }.
 
 Definition alloc_idents (base : ident) : idents := {|
   id_delta  := base;
   id_accept := 1 + base;
   id_q0     := 2 + base;
-  id_q      := 3 + base;
-  id_s      := 4 + base;
-  id_w      := 5 + base;
-  id_len    := 6 + base;
-  id_i      := 7 + base;
-  id_run    := 8 + base
+  id_table  := 3 + base;
+  id_q      := 4 + base;
+  id_s      := 5 + base;
+  id_w      := 6 + base;
+  id_len    := 7 + base;
+  id_i      := 8 + base;
+  id_run    := 9 + base;
+  id_main   := 10 + base
 |}%positive.
 
 (* Types *)
@@ -108,30 +112,61 @@ Definition compiled_q0 : Clight.expr :=
 
 (*  delta
 
-    Emitted as nested [Sifthenelse] on the state, then on the symbol. *)
+    Emitted as a 2D lookup table *)
 
-Definition eq_test (v : ident) (k : Z) : Clight.expr :=
-  Ebinop Oeq (Etempvar v tlong) (Econst_long (Int64.repr k) tlong) tuint.
+Definition nsyms : Z := Z.of_nat (length s.enum).
+Definition nstates : Z := Z.of_nat (length dfa.(states _)).
 
-Definition sym_branch ids state_eq_dec (q_idx : Z) (q : state) : Clight.statement :=
-    fold_left (fun (acc : Clight.statement) '(s_idx, sym) =>
-      match index_of state_eq_dec (dfa.(transition _) q sym)
-                     dfa.(states _) 0 with
-      | Some next_idx =>
-          Clight.Sifthenelse (eq_test ids.(id_s) s_idx)
-            (Clight.Sreturn (Some (Econst_long (Int64.repr next_idx) tlong)))
-            acc
-      | None => acc
-      end
-    ) sym_table (Clight.Sreturn (Some (Econst_long (Int64.repr sink_index) tlong))).
+(* The transition table, flattened row-major: entry [q * |Sigma| + s]
+   holds the index of [delta q s]. Rows are indexed by state, columns
+   by symbol. *)
+Definition table_entry (q : state) (sym : s.t) : Z :=
+  match index_of state_eq_dec (dfa.(transition _) q sym) dfa.(states _) 0 with
+  | Some i => i
+  | None => sink_index
+  end.
+
+Definition table_row (q : state) : list init_data :=
+  map (fun '(_, sym) => Init_int64 (Int64.repr (table_entry q sym))) sym_table.
+
+Definition table_init : list init_data :=
+  flat_map (fun '(_, q) => table_row q) state_table.
+
+Definition table_type : type :=
+  Tarray tlong (nstates * nsyms) noattr.
+
+Definition compile_table : globvar type := {|
+  gvar_info     := table_type;
+  gvar_init     := table_init;
+  gvar_readonly := true;
+  gvar_volatile := false
+|}.
+
+(* unsigned long long delta(unsigned long long q, unsigned long long s) {
+     if (q < |Q| && s < |Sigma|)
+       return table[q * |Sigma| + s];
+     else
+       return |Q|;
+   } *)
+Definition lt_test (v : ident) (k : Z) : Clight.expr :=
+  Ebinop Olt (Etempvar v tlong) (Econst_long (Int64.repr k) tlong) tint.
+
+Definition table_index (ids : idents) : Clight.expr :=
+  Ebinop Oadd
+    (Ebinop Omul (Etempvar ids.(id_q) tlong) (Econst_long (Int64.repr nsyms) tlong) tlong)
+    (Etempvar ids.(id_s) tlong)
+    tlong.
 
 Definition compile_delta (ids : idents) : Clight.fundef :=
   let body :=
-    fold_left (fun (acc : Clight.statement) '(q_idx, q) =>
-      Clight.Sifthenelse (eq_test ids.(id_q) q_idx)
-        (sym_branch ids state_eq_dec q_idx q)
-        acc
-    ) state_table (Clight.Sreturn (Some (Econst_long (Int64.repr sink_index) tlong)))
+    Sifthenelse
+      (Ebinop Oand (lt_test ids.(id_q) nstates) (lt_test ids.(id_s) nsyms) tint)
+      (Sreturn (Some
+        (Ederef
+          (Ebinop Oadd (Evar ids.(id_table) table_type) (table_index ids)
+            (Tpointer tlong noattr))
+          tlong)))
+      (Sreturn (Some (Econst_long (Int64.repr sink_index) tlong)))
   in
   Internal {|
     fn_return   := tlong;
@@ -146,6 +181,9 @@ Definition delta_type : type :=
   Tfunction [tlong; tlong] tlong AST.cc_default.
 
 (* accept *)
+
+Definition eq_test (v : ident) (k : Z) : Clight.expr :=
+  Ebinop Oeq (Etempvar v tlong) (Econst_long (Int64.repr k) tlong) tuint.
 
 Definition compile_accept (ids : idents) : Clight.fundef :=
   let body :=
@@ -180,73 +218,78 @@ Definition compile_q0 : globvar type := {|
 Definition w_type : type :=
   Tpointer tlong noattr.
 
-Definition compile_run (ids : idents) : Clight.fundef :=
-  (* int run(int *w, int len) {
-       int i = 0;
-       int q = q0;
-       while(i < len) {
-         q = delta(q, w[i]);
-         i++;
-       }
-       return q;
+(* int run(int *w, int len) {
+     int i = 0;
+     int q = q0;
+     while(i < len) {
+       q = delta(q, w[i]);
+       i++;
      }
-  *)
-  let body :=
+     return q;
+   } *)
+Definition run_body (ids : idents) : statement :=
+  Ssequence
+    (Sifthenelse
+      (Ebinop Olt (Etempvar ids.(id_i) tlong) (Etempvar ids.(id_len) tlong) tint)
+      Sskip Sbreak)
+    (Ssequence
+      (Scall (Some ids.(id_q)) (Evar ids.(id_delta) delta_type)
+         [ Etempvar ids.(id_q) tlong;
+           Ederef (Ebinop Oadd (Etempvar ids.(id_w) w_type)
+                     (Etempvar ids.(id_i) tlong) w_type) tlong ])
+      (Sset ids.(id_i)
+        (Ebinop Oadd (Etempvar ids.(id_i) tlong) (Econst_long (Int64.repr 1) tlong) tlong))).
+
+Definition run_loop (ids : idents) : statement := Sloop (run_body ids) Sskip.
+
+Definition run_prologue (ids : idents) : statement :=
+  Ssequence
+    (Sset ids.(id_i) (Econst_long (Int64.repr 0) tlong))
+    (Sset ids.(id_q) compiled_q0).
+
+Definition compile_run (ids : idents) : Clight.fundef :=
+  let final_body :=
     Ssequence
-      (Ssequence
-        (Sset ids.(id_i) (Econst_long (Int64.repr 0) tlong))
-        (Sset ids.(id_q) compiled_q0))
-      (Sloop
-        (Ssequence
-          (* i < len *)
-          (Sifthenelse
-            (Ebinop Olt (Etempvar ids.(id_i) tlong) (Etempvar ids.(id_len) tlong) tint)
-            Sskip
-            Sbreak)
-          (Ssequence
-            (* q = delta(q, w[i]); *)
-            (Scall (Some ids.(id_q)) (Evar ids.(id_delta) delta_type)
-                [ Etempvar ids.(id_q) tlong;
-                  Ederef
-                    (Ebinop Oadd (Etempvar ids.(id_w) w_type) (Etempvar ids.(id_i) tlong) w_type)
-                    tlong
-                ])
-            (* i = i + 1; *)
-            (Sset ids.(id_i)
-              (Ebinop Oadd (Etempvar ids.(id_i) tlong) (Econst_long (Int64.repr 1) tlong) tlong))
-          )
-        )
-        Sskip)
-  in
-  let final_body := Ssequence body (Sreturn (Some (Etempvar ids.(id_q) tlong))) in
+      (Ssequence (run_prologue ids) (run_loop ids))
+      (Sreturn (Some (Etempvar ids.(id_q) tlong))) in
   Internal {|
     fn_return   := tlong;
     fn_callconv := AST.cc_default;
     fn_params   := [(ids.(id_w), w_type); (ids.(id_len), tlong)];
     fn_vars     := [];
-    fn_temps    := [(ids.(id_i), tlong); (ids.(id_q), tlong)]; 
+    fn_temps    := [(ids.(id_i), tlong); (ids.(id_q), tlong)];
     fn_body     := final_body
   |}.
 
 (* Program assembly *)
 
-Definition delta_sig : type :=
-  Tfunction [tlong; tlong] tlong AST.cc_default.
-Definition accept_sig : type :=
-  Tfunction [tlong] tlong AST.cc_default.
+Definition tint32s : type := Tint I32 Signed noattr.
+
+Definition compile_main (ids : idents) : Clight.fundef :=
+  Internal {|
+    fn_return   := tint32s;
+    fn_callconv := AST.cc_default;
+    fn_params   := [];
+    fn_vars     := [];
+    fn_temps    := [];
+    fn_body     := Sreturn (Some (Econst_int Int.zero tint32s))
+  |}.
 
 Definition compile_program (base : ident) : result Clight.program :=
   let ids := alloc_idents base in
   let defs : list (ident * globdef Clight.fundef type) :=
-    [ (ids.(id_delta),  Gfun (compile_delta ids));
+    [ (ids.(id_table),  Gvar (compile_table));
+      (ids.(id_delta),  Gfun (compile_delta ids));
       (ids.(id_accept), Gfun (compile_accept ids));
       (ids.(id_q0),     Gvar (compile_q0));
-      (ids.(id_run),    Gfun (compile_run ids)) ] in
+      (ids.(id_run),    Gfun (compile_run ids));
+      (ids.(id_main),   Gfun (compile_main ids)) ] in
   match Ctypes.make_program [] defs
-          [ids.(id_delta); ids.(id_accept); ids.(id_q0)]
-          ids.(id_accept) with
+          [ids.(id_delta); ids.(id_accept); ids.(id_q0); ids.(id_table);
+           ids.(id_run); ids.(id_main)]
+          ids.(id_main) with
   | Errors.OK p => return p
-  | Errors.Error msg => fail E_invalid_type "make_program failed"
+  | Errors.Error msg => fail E_msg "make_program failed"
   end.
 
 End compiler.
