@@ -62,7 +62,7 @@ struct
       (output_fn : string) : (unit, string) Stdlib.result =
     let d = learn () in
     name_idents base;
-    match Compiler.compile_program d base eq_dec with
+    match Compiler.compile_program d eq_dec base with
     | Error e -> Stdlib.Error ("Error: " ^ string_of_error e)
     | Ok p -> pretty_print p output_fn ; Stdlib.Ok ()
 end
