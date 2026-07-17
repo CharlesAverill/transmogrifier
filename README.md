@@ -2,6 +2,7 @@
 
 A formally-verified extension to CompCert for compiling finite state automata.
 Built atop [lstar-rocq](https://github.com/CharlesAverill/lstar-rocq).
+[Performance tests](examples/perftests/) are provided.
 
 Currently-supported automata:
 - [x] DFAs

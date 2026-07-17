@@ -14,7 +14,7 @@ extern "C" {
 typedef unsigned long long moore_state_t;  /* 0..MOORE_NSTATES-1, or the sink */
 typedef unsigned long long moore_symbol_t; /* 0..MOORE_NSYMS-1 */
 typedef unsigned long long moore_output_t; /* 0..MOORE_NOUTS-1 */
-typedef const moore_symbol_t *moore_word_t;
+typedef moore_symbol_t *moore_word_t;
 
 #define MOORE_NSTATES 4ULL
 #define MOORE_NSYMS   2ULL

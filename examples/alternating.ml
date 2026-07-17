@@ -154,6 +154,30 @@ let compile_to_c () =
   | Stdlib.Error e ->
       Printf.eprintf "Header generation failed: %s\n" e
 
+let run_performance_test () =
+  let dfa = Lazy.force learned in
+  let test_size = 1_000_000 in
+  
+  print_endline "\n=== Generating OCaml Test Vector (alternating) ===";
+  let rec gen_vector i acc =
+    if i < 0 then acc
+    else
+      let bit_int = i mod 2 in
+      let digit = match bit_int with 0 -> S.Zero | 1 -> S.One | _ -> S.Zero in
+      gen_vector (i - 1) (digit :: acc)
+  in
+  let test_vector = gen_vector (test_size - 1) [] in
+
+  print_endline "=== OCaml Benchmark ===";
+  let start_time = Sys.time () in
+  let result = Teacher.D.accept_string dfa test_vector in
+  let end_time = Sys.time () in
+
+  Printf.printf "Processed Elements : %d\n" test_size;
+  Printf.printf "Accepted           : %b\n" result;
+  Printf.printf "Execution Time     : %.6f seconds\n" (end_time -. start_time)
+
 let () =
-  print_results "L*" (Lazy.force learned) 3 ;
-  compile_to_c ()
+  print_results "L* Alternating" (Lazy.force learned) 3 ;
+  compile_to_c () ;
+  run_performance_test ()

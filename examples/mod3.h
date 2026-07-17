@@ -14,7 +14,7 @@ extern "C" {
 typedef unsigned long long dfa_state_t;   /* 0..DFA_NSTATES-1, or DFA_SINK */
 typedef unsigned long long dfa_symbol_t;  /* 0..DFA_NSYMS-1 */
 typedef unsigned long long dfa_output_t;  /* 0..1; see the enum below */
-typedef const dfa_symbol_t *dfa_word_t;
+typedef dfa_symbol_t *dfa_word_t;
 
 #define DFA_NSTATES 3ULL
 #define DFA_NSYMS   2ULL

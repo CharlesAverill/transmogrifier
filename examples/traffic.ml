@@ -193,6 +193,31 @@ let compile_to_c () =
   | Stdlib.Error e ->
       Printf.eprintf "Header generation failed: %s\n" e
 
+(* Add to the bottom of your traffic target file *)
+let run_performance_test () =
+  let dfa = Lazy.force learned in
+  let test_size = 1_000_000 in
+  
+  print_endline "\n=== Generating OCaml Test Vector (traffic) ===";
+  let rec gen_vector i acc =
+    if i < 0 then acc
+    else
+      let phase_int = i mod 4 in
+      let symbol = match phase_int with 0 -> S.Reset | _ -> S.Tick in
+      gen_vector (i - 1) (symbol :: acc)
+  in
+  let test_vector = gen_vector (test_size - 1) [] in
+
+  print_endline "=== OCaml Benchmark ===";
+  let start_time = Sys.time () in
+  let result = Teacher.M.output_string dfa test_vector in
+  let end_time = Sys.time () in
+
+  Printf.printf "Processed Elements : %d\n" test_size;
+  Printf.printf "Final State        : %s\n" (O.string_of_t result);
+  Printf.printf "Execution Time     : %.6f seconds\n" (end_time -. start_time)
+
 let () =
-  print_results "Moore-L*" (Lazy.force learned) 4 ;
-  compile_to_c ()
+  print_results "L* Traffic Light Controller" (Lazy.force learned) 4;
+  compile_to_c ();
+  run_performance_test ()
