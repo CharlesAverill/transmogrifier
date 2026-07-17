@@ -217,7 +217,7 @@ Definition compile_accept (ids : idents) : Clight.fundef :=
           (Ebinop Oadd (Evar ids.(id_atable) atable_type) (Etempvar ids.(id_q) tlong)
             (Tpointer tlong noattr))
           tlong)))
-      (Sreturn (Some (Ecast (Econst_int Int.zero tuint) tbool)))
+      (Sreturn (Some (Ecast (Econst_long (Int64.repr (Z.of_nat (length O.enum))) tlong) tbool)))
   in
   Internal {|
     fn_return   := tlong;

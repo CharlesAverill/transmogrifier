@@ -132,15 +132,27 @@ let print_results name dfa n =
   in
   Printf.printf "Accuracy: %d/%d\n" correct (List.length strings)
 
-(** Compile the learned DFA to Clight and write it out as C. *)
+module GenHeader = Transmogrifier.Emit_header.MakeDFA (S)
+
+(** Compile the learned DFA to Clight and write it out as C, plus a header *)
 let compile_to_c () =
   let out = "examples/alternating.c" in
+  let out_h = "examples/alternating.h" in
   Printf.printf "\n=== Compiling to C ===\n" ;
-  match P.compile out with
+  ( match P.compile out with
   | Stdlib.Ok () ->
       Printf.printf "Wrote %s\n" out
   | Stdlib.Error e ->
-      Printf.eprintf "Compilation failed: %s\n" e
+      Printf.eprintf "Compilation failed: %s\n" e ) ;
+  let nstates = Stdlib.List.length (Teacher.D.states (Lazy.force learned)) in
+  match
+    GenHeader.fill_file ~machine_name:"alternating" ~nstates
+      ~template_fn:"include/dfa.h.in" ~out_fn:out_h ()
+  with
+  | Stdlib.Ok () ->
+      Printf.printf "Wrote %s (%d states)\n" out_h nstates
+  | Stdlib.Error e ->
+      Printf.eprintf "Header generation failed: %s\n" e
 
 let () =
   print_results "L*" (Lazy.force learned) 3 ;

@@ -91,14 +91,14 @@ module DFAPipeline
     (Tch : DFATEACHER with module S = S)
     (L : DFALEARNER) =
 struct
-  module Compiler = DFACompiler (S) (Tch.D) 
+  module Compiler = DFACompiler (S) (Tch.D)
   module Lrn = L (Tch)
 
   let moore_of_dfa (d : 'a Tch.D.t) : 'a Compiler.Moore.t =
-  { Compiler.Moore.transition = d.Tch.D.transition
-  ; Compiler.Moore.initial = d.Tch.D.initial
-  ; Compiler.Moore.output = d.Tch.D.accept
-  ; Compiler.Moore.states = d.Tch.D.states }
+    { Compiler.Moore.transition= d.Tch.D.transition
+    ; Compiler.Moore.initial= d.Tch.D.initial
+    ; Compiler.Moore.output= d.Tch.D.accept
+    ; Compiler.Moore.states= d.Tch.D.states }
 
   let learned : Obj.t Tch.D.t option ref = ref None
 

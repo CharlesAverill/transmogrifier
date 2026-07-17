@@ -42,7 +42,7 @@
   Zbits
   Zpower
   Bool
-  Datatypes
+  Datatypes0
   ListDef
   Specif
   dfa
@@ -96,7 +96,7 @@
  (libraries unix lstar))
 
 (rule
- (copy ../vendor/compcert/lib/Camlcoq.ml Camlcoq.ml))
+ (copy ../vendor/patched/Camlcoq.ml Camlcoq.ml))
 
 (rule
  (copy ../vendor/patched/PrintCsyntax.ml PrintCsyntax.ml))

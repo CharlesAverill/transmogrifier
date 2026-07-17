@@ -20,7 +20,7 @@ unsigned long long accept(unsigned long long $6)
   if ($6 < 3LLU) {
     return *(atable + $6);
   } else {
-    return (_Bool) 0U;
+    return (_Bool) 2LLU;
   }
 }
 
