@@ -1,5 +1,5 @@
 unsigned long long delta(unsigned long long, unsigned long long);
-_Bool accept(unsigned long long);
+unsigned long long accept(unsigned long long);
 unsigned long long run(unsigned long long *, unsigned long long);
 int $12(void);
 unsigned long long const table[80] = { 2LL, 1LL, 0LL, 6LL, 5LL, 4LL, 3LL,
@@ -9,7 +9,8 @@ unsigned long long const table[80] = { 2LL, 1LL, 0LL, 6LL, 5LL, 4LL, 3LL,
   1LL, 0LL, 6LL, 5LL, 4LL, 3LL, 2LL, 1LL, 6LL, 5LL, 4LL, 3LL, 2LL, 1LL, 0LL,
   6LL, 5LL, 4LL, 6LL, 5LL, 4LL, 3LL, 2LL, 1LL, 0LL, 6LL, 5LL, 4LL, };
 
-unsigned int const atable[8] = { 0, 0, 0, 0, 0, 0, 1, 0, };
+unsigned long long const atable[8] = { 1LL, 1LL, 1LL, 1LL, 1LL, 1LL, 0LL,
+  1LL, };
 
 unsigned long long delta(unsigned long long $6, unsigned long long $7)
 {
@@ -20,7 +21,7 @@ unsigned long long delta(unsigned long long $6, unsigned long long $7)
   }
 }
 
-_Bool accept(unsigned long long $6)
+unsigned long long accept(unsigned long long $6)
 {
   if ($6 < 8LLU) {
     return *(atable + $6);

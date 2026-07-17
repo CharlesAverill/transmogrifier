@@ -11,7 +11,7 @@ Extraction Language OCaml.
 (* Linear let + beta reduction *)
 Set Extraction Flag 1536.
 
-Extraction Blacklist Int String List Nat.
+Extraction Blacklist Int String List Nat Moore.
 
 #[local] Set Warnings "-extraction-default-directory,-extraction-ambiguous-name".
 

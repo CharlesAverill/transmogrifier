@@ -9,7 +9,7 @@ Import ListNotations.
 Open Scope result_scope.
 Open Scope Z_scope.
 
-(** Correctness of the DFA -> Clight compiler. *)
+(** Correctness of the Moore -> Clight compiler. *)
 
 Module Correctness (s : Symbol) (O : Output) (Moore : MooreType s O).
 

@@ -1,11 +1,11 @@
 unsigned long long delta(unsigned long long, unsigned long long);
-_Bool accept(unsigned long long);
+unsigned long long accept(unsigned long long);
 unsigned long long run(unsigned long long *, unsigned long long);
 int $12(void);
 unsigned long long const table[8] = { 2LL, 1LL, 1LL, 1LL, 1LL, 0LL, 2LL, 0LL,
   };
 
-unsigned int const atable[4] = { 1, 0, 1, 1, };
+unsigned long long const atable[4] = { 0LL, 1LL, 0LL, 0LL, };
 
 unsigned long long delta(unsigned long long $6, unsigned long long $7)
 {
@@ -16,7 +16,7 @@ unsigned long long delta(unsigned long long $6, unsigned long long $7)
   }
 }
 
-_Bool accept(unsigned long long $6)
+unsigned long long accept(unsigned long long $6)
 {
   if ($6 < 4LLU) {
     return *(atable + $6);

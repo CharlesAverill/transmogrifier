@@ -1,4 +1,4 @@
-open Moore
+open Moore0
 open Automata
 open Teacher
 open Dfa
@@ -61,7 +61,7 @@ struct
     in
     (* Must track [alloc_idents] in theories/compiler/dfa.v. *)
     reg 0 "delta" ;
-    reg 1 "accept" ;
+    reg 1 "output" ;
     reg 2 "q0" ;
     reg 3 "table" ;
     reg 4 "atable" ;
@@ -91,8 +91,14 @@ module DFAPipeline
     (Tch : DFATEACHER with module S = S)
     (L : DFALEARNER) =
 struct
-  module Compiler = DFACompiler (S) (Tch.D)
+  module Compiler = DFACompiler (S) (Tch.D) 
   module Lrn = L (Tch)
+
+  let moore_of_dfa (d : 'a Tch.D.t) : 'a Compiler.Moore.t =
+  { Compiler.Moore.transition = d.Tch.D.transition
+  ; Compiler.Moore.initial = d.Tch.D.initial
+  ; Compiler.Moore.output = d.Tch.D.accept
+  ; Compiler.Moore.states = d.Tch.D.states }
 
   let learned : Obj.t Tch.D.t option ref = ref None
 
@@ -133,7 +139,7 @@ struct
       (unit, string) Stdlib.result =
     let d = learn () in
     name_idents base ;
-    match Compiler.compile_program d eq_dec base with
+    match Compiler.compile_program (moore_of_dfa d) eq_dec base with
     | Error e ->
         Stdlib.Error ("Error: " ^ string_of_error e)
     | Ok p ->
