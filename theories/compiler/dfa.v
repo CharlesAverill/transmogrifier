@@ -1,4 +1,4 @@
-From lstar Require Import Automata.
+From lstar Require Import automata.DFA.
 From compcert Require Import AST Clight Ctypes Integers Cop Maps.
 From Transmogrifier Require Import Monads moore.
 From Stdlib Require Import String List ZArith Bool.

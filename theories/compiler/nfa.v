@@ -1,4 +1,4 @@
-From lstar Require Import Automata.
+From lstar Require Import automata.NFA.
 From compcert Require Import AST Clight Ctypes Integers Cop Maps.
 From Transmogrifier Require Import Monads.
 From Stdlib Require Import String List ZArith.
@@ -277,28 +277,39 @@ Definition step_body (ids : idents) : statement :=
             (Ssequence
               (Sset ids.(id_word)
                 (idx (Etempvar ids.(id_cur) tsetptr) (Etempvar ids.(id_k) tlong)))
-              (Ssequence
-                (Sset ids.(id_q) (const 0))
-                (Sloop
-                  (Ssequence
-                    (Sifthenelse (lt_test ids.(id_q) 64) Sskip Sbreak)
-                    (Sifthenelse
-                      (Ebinop One
-                        (Ebinop Oand (Etempvar ids.(id_word) tlong)
-                          (Ebinop Oshl (const 1) (Etempvar ids.(id_q) tlong) tlong)
-                          tlong)
-                        (const 0) tint)
-                      (Sifthenelse
-                        (Ebinop Olt
-                          (Ebinop Oadd
-                            (Ebinop Omul (Etempvar ids.(id_k) tlong) (const 64) tlong)
-                            (Etempvar ids.(id_q) tlong) tlong)
-                          (const nstates) tint)
-                        (union_row ids)
-                        Sskip)
-                      Sskip))
-                  (Sset ids.(id_q)
-                    (Ebinop Oadd (Etempvar ids.(id_q) tlong) (const 1) tlong))))))
+              (* OPTIMIZATION 1: Skip entirely empty words immediately *)
+              (Sifthenelse (Ebinop Oeq (Etempvar ids.(id_word) tlong) (const 0) tint)
+                Scontinue
+                (Ssequence
+                  (Sset ids.(id_q) (const 0))
+                  (Sloop
+                    (Ssequence
+                      (Sifthenelse (lt_test ids.(id_q) 64) Sskip Sbreak)
+                      (Ssequence
+                        (* OPTIMIZATION 2: Early exit when remaining bits are all zero *)
+                        (Sifthenelse (Ebinop Oeq (Etempvar ids.(id_word) tlong) (const 0) tint)
+                          Sbreak
+                          Sskip)
+                        (Sifthenelse
+                          (* OPTIMIZATION 3: Check lowest bit instead of shifting (1 << q) *)
+                          (Ebinop One
+                            (Ebinop Oand (Etempvar ids.(id_word) tlong) (const 1) tlong)
+                            (const 0) tint)
+                          (Sifthenelse
+                            (Ebinop Olt
+                              (Ebinop Oadd
+                                (Ebinop Omul (Etempvar ids.(id_k) tlong) (const 64) tlong)
+                                (Etempvar ids.(id_q) tlong) tlong)
+                              (const nstates) tint)
+                            (union_row ids)
+                            Sskip)
+                          Sskip)))
+                    (Ssequence
+                      (Sset ids.(id_q)
+                        (Ebinop Oadd (Etempvar ids.(id_q) tlong) (const 1) tlong))
+                      (* OPTIMIZATION 4: Shift word right by 1 every iteration *)
+                      (Sset ids.(id_word)
+                        (Ebinop Oshr (Etempvar ids.(id_word) tlong) (const 1) tlong))))))))
           (Sset ids.(id_k)
             (Ebinop Oadd (Etempvar ids.(id_k) tlong) (const 1) tlong))))).
 

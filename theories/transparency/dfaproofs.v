@@ -1,4 +1,4 @@
-From lstar Require Import Automata.
+From lstar Require Import automata.DFA.
 From compcert Require Import AST Clight Ctypes Integers Values Coqlib.
 From compcert Require Import ClightBigstep Events Globalenvs Memory.
 From Transmogrifier Require Import Monads.

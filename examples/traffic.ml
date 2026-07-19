@@ -1,7 +1,8 @@
 (* European-style 4-phase traffic light *)
 
 open Lstar
-open Automata
+open Alphabet
+open Moore
 open Specif
 open Teacher
 open Transmogrifier.Pipeline

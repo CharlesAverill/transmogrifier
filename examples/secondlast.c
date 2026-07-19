@@ -30,21 +30,29 @@ void delta(unsigned long long *$6, unsigned long long $8, unsigned long long *$7
       break;
     }
     $12 = *($6 + $10);
-    $9 = 0LLU;
-    for (; 1; $9 = $9 + 1LLU) {
-      if (! ($9 < 64LLU)) {
-        break;
-      }
-      if (($12 & 1LLU << $9) != 0LLU) {
-        if ($10 * 64LLU + $9 < 3LLU) {
-          $11 = 0LLU;
-          for (; 1; $11 = $11 + 1LLU) {
-            if (! ($11 < 1LLU)) {
-              break;
+    if ($12 == 0LLU) {
+      continue;
+    } else {
+      $9 = 0LLU;
+      for (; 1; $9 = $9 + 1LLU, $12 = $12 >> 1LLU) {
+        if (! ($9 < 64LLU)) {
+          break;
+        }
+        if ($12 == 0LLU) {
+          break;
+        }
+        if (($12 & 1LLU) != 0LLU) {
+          if ($10 * 64LLU + $9 < 3LLU) {
+            $11 = 0LLU;
+            for (; 1; $11 = $11 + 1LLU) {
+              if (! ($11 < 1LLU)) {
+                break;
+              }
+              *($7 + $11) =
+                *($7 + $11)
+                  | *(table
+                       + ((($10 * 64LLU + $9) * 2LLU + $8) * 1LLU + $11));
             }
-            *($7 + $11) =
-              *($7 + $11)
-                | *(table + ((($10 * 64LLU + $9) * 2LLU + $8) * 1LLU + $11));
           }
         }
       }

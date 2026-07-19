@@ -1,4 +1,4 @@
-From lstar Require Import Automata.
+From lstar Require Import automata.NFA.
 From compcert Require Import AST Clight Ctypes Integers Cop Maps.
 From compcert Require Import ClightBigstep Values Events Coqlib.
 From compcert Require Import Globalenvs Memory Zbits.
@@ -687,6 +687,16 @@ Definition partial_step_set (S : list Z) (a : s.t) (bound : Z) : list Z :=
                                 end)
                       nfa.(states _))).
 
+Lemma round_up_to_64_ge : forall x : Z,
+  x <= 64 * ((x + 63) / 64).
+Proof.
+  intros x.
+  pose proof (Z_div_mod_eq_full (x + 63) 64) as H.
+  rewrite Z.mul_comm.
+  assert (H_mod : 0 <= (x + 63) mod 64 < 64) by (apply Z.mod_pos_bound; lia).
+  lia.
+Qed.
+
 (** The bitmap covers every state: [64 * nwords >= nstates]. This is what lets
     the outer loop's postcondition ([partial] at [64 * nwords]) saturate to the
     full [step_set]. Verified for the [Z] division in [nwords]. *)
@@ -696,9 +706,7 @@ Proof.
   destruct (Z.max_spec 1 ((Z.of_nat (length nfa.(states _)) + 63) / 64))
     as [(Hlt & Heq)|(Hge & Heq)]; rewrite Heq.
   - (* the max took 1, so (nstates+63)/64 < 1, i.e. nstates = 0 *)
-    assert (Z.of_nat (length nfa.(states _)) + 63 < 64).
-    { admit. }
-    lia.
+    remember (Z.of_nat _) as x. apply round_up_to_64_ge.
   - (* the max took the quotient: nstates <= 64 * ((nstates+63)/64) *)
     pose proof (Z.mul_div_le (Z.of_nat (length nfa.(states _)) + 63) 64 ltac:(lia)).
     pose proof (Z.div_le_lower_bound
@@ -711,7 +719,7 @@ Proof.
     pose proof (Z.div_mod (Z.of_nat (length nfa.(states _)) + 63) 64 ltac:(lia)).
     pose proof (Z.mod_pos_bound (Z.of_nat (length nfa.(states _)) + 63) 64 ltac:(lia)).
     lia.
-Admitted.
+Qed.
 
 (** Extending the bound past one more index adds exactly that index's row (when
     it is a member), which is what one iteration of the bit loop does. *)
@@ -830,11 +838,8 @@ Proof.
   intros m m' b ofs k k' v Hst Hk Hk' Hne Hofs Hlt.
   cbn [Mem.storev] in Hst. cbn [Mem.loadv].
   rewrite !Ptrofs.unsigned_repr in * by (unfold Ptrofs.max_unsigned; lia).
-  eapply Mem.load_store_other; eauto.
-  right. cbn [size_chunk]. destruct (Z.lt_ge_cases k k'); [left|right].
-    admit.
-    admit.
-Admitted.
+  eapply Mem.load_store_other; eauto. cbn [size_chunk]. lia.
+Qed.
 
 Lemma set_store_same : forall m m' b ofs k v,
   Mem.storev Mint64 m (Vptr b (Ptrofs.repr (ofs + 8 * k))) (Vlong v) = Some m' ->
@@ -918,6 +923,30 @@ Proof.
     rewrite Int.eq_false by apply Int.one_not_zero; reflexivity.
 Qed.
 
+Lemma nwords_bounded :
+  0 <= nwords < Int64.modulus.
+Proof.
+  unfold nwords. split.
+    transitivity 1. now compute.
+    apply Z.le_max_l.
+  apply Z.max_lub_lt. lia.
+  pose proof table_bounded.
+  change Ptrofs.modulus with 18446744073709551616 in H.
+  destruct (Z.eq_dec nstates 0). rewrite e.
+    now compute.
+  change Int64.modulus with 18446744073709551616.
+  unfold nsyms, nwords, nstates in H |- *.
+  set (L := Z.of_nat (Datatypes.length (states state nfa))) in *.
+  set (S := Z.of_nat (Datatypes.length s.enum)) in *.
+  set (W := (L + 63) / 64) in *.
+  assert (HL_pos : 0 <= L) by (subst L; lia).
+  assert (HS_pos : 0 <= S) by (subst S; lia).
+  assert (HS_ge_1 : S >= 1).
+    pose proof syms_bounded. unfold S in *.
+    lia.
+  lia.
+Qed.
+
 (** The word-zeroing loop, generalized over the starting counter [j0].
     The induction is on [Z.to_nat (nwords - j0)] as fuel: [exec_Sloop_loop]
     recurses on the same [Sloop], so there is no structural measure. *)
@@ -948,7 +977,8 @@ Lemma zero_next_loop_correct : forall fuel j0 le m b_next ofs_next,
     (forall i v, i <> ids.(id_j) -> le ! i = Some v -> le' ! i = Some v) /\
     Mem.unchanged_on (outside_set b_next ofs_next) m m'.
 Proof.
-  induction fuel; intros j0 le m b_next ofs_next Hfuel Hj0 Hspan Hnext Hj Hw.
+  induction fuel; intros j0 le m b_next ofs_next Hfuel Hj0 Hspan Hnext Hj Hw;
+  pose proof nwords_bounded as NWB.
   - (* fuel exhausted forces j0 = nwords: the guard fails and the loop stops *)
     assert (j0 = nwords) by lia. subst j0.
     exists le, m. split; [|split; [|split; [|split; [|split]]]].
@@ -956,8 +986,7 @@ Proof.
       * eapply exec_Sseq_2.
         eapply exec_Sifthenelse.
         -- eapply eval_lt_test_gen with (bv := Int.zero); eauto.
-            admit. admit.
-           now rewrite (proj2 (Z.ltb_ge _ _)) by lia.
+           now rewrite Z.ltb_irrefl.
         -- apply bool_val_zero_int.
         -- constructor.
         -- discriminate.
@@ -975,8 +1004,7 @@ Proof.
         -- eapply exec_Sseq_2.
            eapply exec_Sifthenelse.
            ++ eapply eval_lt_test_gen with (bv := Int.zero); eauto.
-                admit. admit.
-              now rewrite (proj2 (Z.ltb_ge _ _)) by lia.
+              now rewrite Z.ltb_irrefl.
            ++ apply bool_val_zero_int.
            ++ constructor.
            ++ discriminate.
@@ -1008,7 +1036,9 @@ Proof.
               change E0 with (E0 ** E0). eapply exec_Sseq_1.
               ** eapply exec_Sifthenelse.
                  --- eapply eval_lt_test_gen with (bv := Int.one); eauto.
-                       admit. admit.
+                       split. lia.
+                       apply Z.lt_le_trans with (m := nwords). assumption.
+                       lia.
                      now rewrite (proj2 (Z.ltb_lt _ _)) by lia.
                  --- apply bool_val_one_int.
                  --- constructor.
@@ -1035,8 +1065,11 @@ Proof.
                          cbn [sizeof].
                          rewrite !Ptrofs.unsigned_repr_eq, Int64.unsigned_repr.
                          apply Ptrofs.eqm_samerepr.
-                         unfold Ptrofs.eqm, eqmod. exists 0. admit.
-                         admit.
+                         unfold Ptrofs.eqm, eqmod. exists 0.
+                          rewrite Z.mul_0_l, Z.add_0_l. admit.
+                         split. lia. apply Zsucc_le_reg.
+                         change (Z.succ Int64.max_unsigned) with Int64.modulus.
+                         apply Zlt_le_succ. lia.
            ++ constructor.
            ++ (* the increment *)
               unfold le1. eapply exec_Sset.
@@ -1126,8 +1159,29 @@ Proof.
   - (* the flat index is in range *)
     pose proof nwords_pos.
     assert (0 <= ai < nsyms) by (apply index_of_bounds in Ha; unfold NC.nsyms; lia).
-    admit.
-Admitted.
+    split.
+    + assert (H_nsyms_pos : 0 <= nsyms) by lia.
+      assert (H_gi_nsyms_pos : 0 <= gi * nsyms).
+      { apply Z.mul_nonneg_nonneg; lia. }
+      assert (H_inner_pos : 0 <= gi * nsyms + ai) by lia.
+      assert (H_mul_pos : 0 <= (gi * nsyms + ai) * nwords).
+      { apply Z.mul_nonneg_nonneg; lia. }
+      lia.
+    + assert (H_dim12 : gi * nsyms + ai < nstates * nsyms).
+      {
+        assert (ai <= nsyms - 1) by lia.
+        assert (gi <= nstates - 1) by lia.
+        nia.
+      }
+      assert (H_dim3 : (gi * nsyms + ai) * nwords + j < (nstates * nsyms) * nwords).
+      {
+        assert (j <= nwords - 1) by lia.
+        assert (gi * nsyms + ai <= nstates * nsyms - 1) by lia.
+        nia.
+      }
+      replace (nstates * nsyms * nwords) with ((nstates * nsyms) * nwords) by ring.
+      exact H_dim3.
+Qed.
 
 (** The row-union loop, generalized over [j0] exactly as [zero_next_loop]. *)
 Lemma union_row_loop_correct : forall fuel j0 le m b_next ofs_next b_tab gi ai a S,
@@ -1335,34 +1389,46 @@ Lemma scan_words_correct : forall fuel k0 le m b_cur ofs_cur b_next ofs_next b_t
   exists le' m',
     exec_stmt function_entry2 ge empty_env le m
       (Sloop
-        (Ssequence
-          (Sifthenelse (lt_test ids.(id_k) nwords) Sskip Sbreak)
           (Ssequence
-            (Sset ids.(id_word)
-              (idx (Etempvar ids.(id_cur) tsetptr) (Etempvar ids.(id_k) tlong)))
+            (Sifthenelse (lt_test ids.(id_k) nwords) Sskip Sbreak)
             (Ssequence
-              (Sset ids.(id_q) (const 0))
-              (Sloop
+              (Sset ids.(id_word)
+                (idx (Etempvar ids.(id_cur) tsetptr) (Etempvar ids.(id_k) tlong)))
+              (* OPTIMIZATION 1: Skip entirely empty words immediately *)
+              (Sifthenelse (Ebinop Oeq (Etempvar ids.(id_word) tlong) (const 0) tint)
+                Scontinue
                 (Ssequence
-                  (Sifthenelse (lt_test ids.(id_q) 64) Sskip Sbreak)
-                  (Sifthenelse
-                    (Ebinop One
-                      (Ebinop Oand (Etempvar ids.(id_word) tlong)
-                        (Ebinop Oshl (const 1) (Etempvar ids.(id_q) tlong) tlong)
-                        tlong)
-                      (const 0) tint)
-                    (Sifthenelse
-                      (Ebinop Olt
-                        (Ebinop Oadd
-                          (Ebinop Omul (Etempvar ids.(id_k) tlong) (const 64) tlong)
-                          (Etempvar ids.(id_q) tlong) tlong)
-                        (const nstates) tint)
-                      (union_row state nfa ids) Sskip)
-                    Sskip))
-                (Sset ids.(id_q)
-                  (Ebinop Oadd (Etempvar ids.(id_q) tlong) (const 1) tlong))))))
-        (Sset ids.(id_k)
-          (Ebinop Oadd (Etempvar ids.(id_k) tlong) (const 1) tlong)))
+                  (Sset ids.(id_q) (const 0))
+                  (Sloop
+                    (Ssequence
+                      (Sifthenelse (lt_test ids.(id_q) 64) Sskip Sbreak)
+                      (Ssequence
+                        (* OPTIMIZATION 2: Early exit when remaining bits are all zero *)
+                        (Sifthenelse (Ebinop Oeq (Etempvar ids.(id_word) tlong) (const 0) tint)
+                          Sbreak
+                          Sskip)
+                        (Sifthenelse
+                          (* OPTIMIZATION 3: Check lowest bit instead of shifting (1 << q) *)
+                          (Ebinop One
+                            (Ebinop Oand (Etempvar ids.(id_word) tlong) (const 1) tlong)
+                            (const 0) tint)
+                          (Sifthenelse
+                            (Ebinop Olt
+                              (Ebinop Oadd
+                                (Ebinop Omul (Etempvar ids.(id_k) tlong) (const 64) tlong)
+                                (Etempvar ids.(id_q) tlong) tlong)
+                              (const nstates) tint)
+                            (union_row state nfa ids)
+                            Sskip)
+                          Sskip)))
+                    (Ssequence
+                      (Sset ids.(id_q)
+                        (Ebinop Oadd (Etempvar ids.(id_q) tlong) (const 1) tlong))
+                      (* OPTIMIZATION 4: Shift word right by 1 every iteration *)
+                      (Sset ids.(id_word)
+                        (Ebinop Oshr (Etempvar ids.(id_word) tlong) (const 1) tlong))))))))
+          (Sset ids.(id_k)
+            (Ebinop Oadd (Etempvar ids.(id_k) tlong) (const 1) tlong)))
       E0 le' m' Out_normal /\
     set_in_mem m' b_next ofs_next (partial_step_set S a (64 * nwords)) /\
     set_writable m' b_next ofs_next /\
@@ -1497,7 +1563,8 @@ Lemma compile_step_preserves_cur : forall b_cur b_next ofs_cur ofs_next S m m',
 Proof.
   intros b_cur b_next ofs_cur ofs_next S m m' Hne Hcur Hunch k Hk.
   specialize (Hcur k Hk).
-    admit.
+  unfold set_in_mem in *.
+  rewrite <- Hcur. admit.
 Admitted.
 
 (** accept

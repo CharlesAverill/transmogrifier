@@ -1,4 +1,4 @@
-From lstar Require Import Automata.
+From lstar Require Import automata.Moore.
 From compcert Require Import AST Clight Ctypes Integers Cop Maps.
 From compcert Require Import ClightBigstep Values Events Coqlib.
 From compcert Require Import Globalenvs Memory.

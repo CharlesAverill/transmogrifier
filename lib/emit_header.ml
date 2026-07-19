@@ -41,7 +41,7 @@ let subst (tbl : (string * string) list) (s : string) : string =
       Str.global_replace (Str.regexp_string ("@" ^ k ^ "@")) v acc )
     tbl s
 
-module MakeMoore (S : Automata.Symbol) (O : Automata.Symbol) = struct
+module MakeMoore (S : Alphabet.Symbol) (O : Alphabet.Symbol) = struct
   (* An index is a position in the enum -- accept_entry is
      [index_of O.eq_dec (output q) O.enum 0] -- so mapi reproduces exactly the
      values accept returns, given the same enum the machine was compiled with. *)
@@ -163,7 +163,7 @@ end
    from MakeMoore. Only the *spelling* differs: the DFA header namespaces its
    types dfa_* rather than moore_*, and names the bool output alphabet
    TRUE/FALSE rather than the generic OUT_*. Those are the overrides here. *)
-module MakeDFA (S : Automata.Symbol) = struct
+module MakeDFA (S : Alphabet.Symbol) = struct
   module O = struct
     type t = bool
 
@@ -218,7 +218,7 @@ end
    never rendered: nfa.h.in has no @OUTPUT_ENUM@ placeholder.
 
    The one genuinely new substitution is @NWORDS@, the width of a state set. *)
-module MakeNFA (S : Automata.Symbol) = struct
+module MakeNFA (S : Alphabet.Symbol) = struct
   module O = struct
     type t = unit
 

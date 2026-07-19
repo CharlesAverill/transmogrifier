@@ -4,7 +4,8 @@
 *)
 
 open Lstar
-open Automata
+open Alphabet
+open NFA
 open Teacher
 open Transmogrifier.Pipeline
 open Stdlib

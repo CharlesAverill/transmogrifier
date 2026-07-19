@@ -1,5 +1,5 @@
 open Moore0
-open Automata
+open Alphabet
 open Teacher
 open Dfa
 open Nfa

@@ -1,5 +1,6 @@
 open Lstar
-open Automata
+open Alphabet
+open DFA
 open Specif
 open Teacher
 open Transmogrifier.Pipeline
