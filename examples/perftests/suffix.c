@@ -1,14 +1,13 @@
 // ccomp -O3 -o suffix_perf examples/perftests/suffix.c examples/suffix.c -I examples/
 /*
-charles@anesidora:~/Desktop/projects/rocq/transmogrifier$ ./suffix_perf 
 === C Benchmark ===
-Processed Elements : 1000000
+Processed Elements : 16
 Accepted           : false
-Execution Time     : 0.011313 seconds
+Execution Time     : 0.000015 seconds
 === OCaml Benchmark ===
 Processed Elements : 16
 Accepted           : false
-Execution Time     : 0.532988 seconds
+Execution Time     : 0.003688 seconds
 */
 /*
 # lscpu | grep -E 'Model name|Architecture|CPU\(s\):|cache'
@@ -27,7 +26,7 @@ NUMA node0 CPU(s):                       0-3
 #include <time.h>
 #include "suffix.h"
 
-#define TEST_SIZE 1000000
+#define TEST_SIZE 16
 
 int main(void)
 {
