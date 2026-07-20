@@ -1,13 +1,14 @@
-// ccomp -O3 -o secondlast_perf examples/perftests/secondlast.c examples/secondlast.c -I examples/
+// ccomp -O3 -o suffix_perf examples/perftests/suffix.c examples/suffix.c -I examples/
 /*
+charles@anesidora:~/Desktop/projects/rocq/transmogrifier$ ./suffix_perf 
 === C Benchmark ===
 Processed Elements : 1000000
-Accepted           : true
-Execution Time     : 0.009747 seconds
+Accepted           : false
+Execution Time     : 0.011313 seconds
 === OCaml Benchmark ===
-Processed Elements : 1000000
-Accepted           : true
-Execution Time     : 0.079446 seconds
+Processed Elements : 16
+Accepted           : false
+Execution Time     : 0.532988 seconds
 */
 /*
 # lscpu | grep -E 'Model name|Architecture|CPU\(s\):|cache'
@@ -24,7 +25,7 @@ NUMA node0 CPU(s):                       0-3
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include "secondlast.h"
+#include "suffix.h"
 
 #define TEST_SIZE 1000000
 

@@ -1,7 +1,7 @@
 /* nfa.h -- interface to an NFA compiled to Clight by Transmogrifier.
  *
  * GENERATED from include/nfa.h.in -- do not edit.
- * Machine: secondlast
+ * Machine: suffix
  */
 
 #ifndef TRANSMOGRIFIER_NFA_H
@@ -11,7 +11,7 @@
 extern "C" {
 #endif
 
-#define NFA_NSTATES 3ULL
+#define NFA_NSTATES 4ULL
 #define NFA_NSYMS   2ULL
 
 /** Words per set: ceil(NFA_NSTATES / 64), at least 1. */

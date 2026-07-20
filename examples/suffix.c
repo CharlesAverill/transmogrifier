@@ -2,11 +2,12 @@ void delta(unsigned long long *, unsigned long long, unsigned long long *);
 _Bool accept(unsigned long long *);
 void run(unsigned long long *, unsigned long long, unsigned long long *);
 int $19(void);
-unsigned long long const table[6] = { 3LL, 1LL, 4LL, 4LL, 0LL, 0LL, };
+unsigned long long const table[8] = { 12LL, 8LL, 13LL, 9LL, 14LL, 10LL, 12LL,
+  8LL, };
 
-unsigned long long const q0[1] = { 1LL, };
+unsigned long long const q0[1] = { 8LL, };
 
-unsigned long long const atable[1] = { 4LL, };
+unsigned long long const atable[1] = { 1LL, };
 
 void delta(unsigned long long *$6, unsigned long long $8, unsigned long long *$7)
 {
@@ -42,7 +43,7 @@ void delta(unsigned long long *$6, unsigned long long $8, unsigned long long *$7
           break;
         }
         if (($12 & 1LLU) != 0LLU) {
-          if ($10 * 64LLU + $9 < 3LLU) {
+          if ($10 * 64LLU + $9 < 4LLU) {
             $11 = 0LLU;
             for (; 1; $11 = $11 + 1LLU) {
               if (! ($11 < 1LLU)) {
