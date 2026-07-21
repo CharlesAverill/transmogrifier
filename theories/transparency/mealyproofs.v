@@ -730,7 +730,7 @@ Proof.
                 (pose proof ptrofs_le_int64; unfold MC.nstates, MC.nsyms in *; nia).
               rewrite Z.add_0_l.
               unfold Mem.loadv.
-              erewrite <- Mem.load_store_other; eauto. admit.
+              erewrite Mem.load_store_other; eauto.
     + cbn. split. discriminate.
       unfold tlong, sem_cast, classify_cast. now destruct Archi.ptr64.
     + reflexivity.
@@ -738,7 +738,7 @@ Proof.
     eapply Mem.store_unchanged_on; [exact Hstore |].
     intros i Hi [Hb | Hrange]; [now apply Hb |].
     cbn [size_chunk] in *. lia.
-Admitted.
+Qed.
 
 (* [delta] on out-of-range input writes [|O|] and returns [|Q|]. *)
 Lemma compile_delta_sink :
