@@ -76,7 +76,7 @@ module NTeacher : NFATEACHER with module S = S = struct
   let member = member
 
   let equiv_query (nfa : 'a R.N.t) : S.str option =
-    counterexample (R.N.accept_string nfa)
+    counterexample (R.N.accept_string_dedup (=) nfa)
 
   let fuel : int = Int.max_int
 end
@@ -136,7 +136,7 @@ let report_nfa name nfa k =
   print_endline "RFSA found" ;
   NP.print_nfa nfa ;
   Printf.printf "DOT file at %s\n" (NP.to_dot ~name:(name ^ "_suffix") nfa) ;
-  print_table (NTeacher.R.N.accept_string nfa) k
+  print_table (NTeacher.R.N.accept_string_dedup (=) nfa) k
 
 let learned : __ NTeacher.R.t Lazy.t = lazy (NLstar.nlstar ())
 
@@ -178,7 +178,7 @@ let compile_to_c () =
       Printf.eprintf "Header generation failed: %s\n" e
 
 let run_performance_test () =
-  let test_size = 16 in
+  let test_size = 1000000 in
   print_endline "\n=== Generating OCaml Test Vector (suffix) ===" ;
   (* alternating a,b,a,b,... so the last two symbols are "ab" -> accepted *)
   let test_vector =
@@ -186,7 +186,7 @@ let run_performance_test () =
   in
   print_endline "=== OCaml Benchmark ===" ;
   let start_time = Sys.time () in
-  let result = NTeacher.R.N.accept_string (Lazy.force learned) test_vector in
+  let result = NTeacher.R.N.accept_string_dedup (=) (Lazy.force learned) test_vector in
   let end_time = Sys.time () in
   Printf.printf "Processed Elements : %d\n" test_size ;
   Printf.printf "Accepted           : %b\n" result ;

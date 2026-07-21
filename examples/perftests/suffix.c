@@ -1,13 +1,13 @@
 // ccomp -O3 -o suffix_perf examples/perftests/suffix.c examples/suffix.c -I examples/
 /*
 === C Benchmark ===
-Processed Elements : 16
+Processed Elements : 1000000
 Accepted           : false
-Execution Time     : 0.000015 seconds
+Execution Time     : 0.031168 seconds
 === OCaml Benchmark ===
-Processed Elements : 16
+Processed Elements : 1000000
 Accepted           : false
-Execution Time     : 0.003688 seconds
+Execution Time     : 0.265897 seconds
 */
 /*
 # lscpu | grep -E 'Model name|Architecture|CPU\(s\):|cache'
@@ -26,7 +26,7 @@ NUMA node0 CPU(s):                       0-3
 #include <time.h>
 #include "suffix.h"
 
-#define TEST_SIZE 16
+#define TEST_SIZE 1000000
 
 int main(void)
 {
