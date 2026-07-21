@@ -212,6 +212,16 @@ module MakeDFA (S : Alphabet.Symbol) = struct
       ~machine_name ~nstates ~template_fn ~out_fn
 end
 
+(* A Mealy machine has both an input and an output alphabet, exactly like a
+   Moore machine, so [MakeMealy] is [MakeMoore] with no overrides at all --
+   only [mealy.h.in]'s prose differs (delta writes an output through a
+   pointer and returns the next state; there is no free-standing [output]
+   function, since a Mealy machine's output depends on the symbol as well as
+   the state). *)
+module MakeMealy (S : Alphabet.Symbol) (O : Alphabet.Symbol) = struct
+  include MakeMoore (S) (O)
+end
+
 (* An NFA has no output alphabet -- acceptance is a set intersection, not an
    output symbol -- so MakeNFA takes only the input alphabet. It reuses
    MakeMoore's machinery by pairing S with a dummy one-element output, which is

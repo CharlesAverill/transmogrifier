@@ -194,7 +194,6 @@ let compile_to_c () =
   | Stdlib.Error e ->
       Printf.eprintf "Header generation failed: %s\n" e
 
-(* Add to the bottom of your traffic target file *)
 let run_performance_test () =
   let dfa = Lazy.force learned in
   let test_size = 1_000_000 in

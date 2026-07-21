@@ -1,13 +1,13 @@
-// ccomp -O3 -o traffic_perf examples/perftests/traffic.c examples/traffic.c -I examples/
+// ccomp -O3 -o vending_perf examples/perftests/vending.c examples/vending.c -I examples/
 /*
 === C Benchmark ===
 Processed Elements : 1000000
 Final State        : YELLOW
 Execution Time     : 0.005226 seconds
 === OCaml Benchmark ===
-Processed Elements : 1000000
-Final State        : YELLOW
-Execution Time     : 0.126357 seconds
+Processed Elements : 100
+Trace              : --BACK 15-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-
+Execution Time     : 0.000143 seconds
 */
 /*
 # lscpu | grep -E 'Model name|Architecture|CPU\(s\):|cache'
@@ -24,7 +24,7 @@ NUMA node0 CPU(s):                       0-21
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include "traffic.h"
+#include "vending.h"
 
 #define TEST_SIZE 1000000
 

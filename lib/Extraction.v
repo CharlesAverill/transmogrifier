@@ -4,7 +4,7 @@ From Stdlib Require Import ExtrOcamlNativeString.
 From Stdlib Require Import NArith ZArith.
 From compcert Require Import Csyntax.
 
-From Transmogrifier.compiler Require Import dfa moore nfa.
+From Transmogrifier.compiler Require Import dfa moore nfa mealy.
 
 Extraction Language OCaml.
 
@@ -19,5 +19,5 @@ From compcert Require Import Compiler.
  
 Extract Constant Compiler.print_Clight => "PrintClight.print_if".
 
-Separate Extraction DFACompiler MooreCompiler NFACompiler
+Separate Extraction DFACompiler MooreCompiler NFACompiler MealyCompiler
     Pos Stdlib.ZArith.BinInt.Z Integers Floats Values Csyntax Clight.type_of_function BinNat.N.

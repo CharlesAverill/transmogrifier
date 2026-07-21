@@ -46,6 +46,7 @@
   ListDef
   Specif
   dfa
+  mealy
   moore0
   nfa)
  (theories Stdlib lstar compcert Flocq Transmogrifier))
