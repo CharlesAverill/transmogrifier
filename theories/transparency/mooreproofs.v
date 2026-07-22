@@ -11,8 +11,8 @@ Open Scope Z_scope.
 
 Module Correctness (s : Symbol) (O : Output) (Moore : MooreType s O).
 
-Module DC := MooreCompiler s O Moore.
-Import DC Moore.
+Module MC := MooreCompiler s O Moore.
+Import MC Moore.
 
 Section index.
 Variable X : Type.
@@ -522,15 +522,15 @@ Proof.
       reflexivity.
 Qed.
 
-Lemma nsyms_bound : 0 <= DC.nsyms <= Int64.max_unsigned.
+Lemma nsyms_bound : 0 <= MC.nsyms <= Int64.max_unsigned.
 Proof.
-  unfold DC.nsyms, Int64.max_unsigned.
+  unfold MC.nsyms, Int64.max_unsigned.
   pose proof (Nat2Z.is_nonneg (Datatypes.length s.enum)). lia.
 Qed.
 
-Lemma nstates_bound : 0 <= DC.nstates state moore <= Int64.max_unsigned.
+Lemma nstates_bound : 0 <= MC.nstates state moore <= Int64.max_unsigned.
 Proof.
-  unfold DC.nstates, Int64.max_unsigned.
+  unfold MC.nstates, Int64.max_unsigned.
   pose proof (Nat2Z.is_nonneg (Datatypes.length (states state moore))). lia.
 Qed.
 
@@ -592,12 +592,12 @@ Lemma compile_delta_correct : forall q sym q_idx s_idx next_idx,
 Proof.
   set (nstates := nstates state moore).
   intros. destruct find_table as (tb & Hsym & _).
-  assert (Hq : 0 <= q_idx < nstates) by (unfold sidx, nstates, DC.nstates in *; apply index_of_bounds in H; lia).
-  assert (Hs : 0 <= s_idx < nsyms) by (unfold symidx, nsyms, DC.nstates in *; apply index_of_bounds in H0; lia).
-  assert (Hprod : 0 <= q_idx * DC.nsyms + s_idx < DC.nstates state moore * DC.nsyms).
-    { unfold DC.nstates, DC.nsyms in *. nia. }
-  assert (Hpb : 8 * (q_idx * DC.nsyms + s_idx) < Ptrofs.modulus).
-    { unfold DC.nstates, DC.nsyms in *. nia. }
+  assert (Hq : 0 <= q_idx < nstates) by (unfold sidx, nstates, MC.nstates in *; apply index_of_bounds in H; lia).
+  assert (Hs : 0 <= s_idx < nsyms) by (unfold symidx, nsyms, MC.nstates in *; apply index_of_bounds in H0; lia).
+  assert (Hprod : 0 <= q_idx * MC.nsyms + s_idx < MC.nstates state moore * MC.nsyms).
+    { unfold MC.nstates, MC.nsyms in *. nia. }
+  assert (Hpb : 8 * (q_idx * MC.nsyms + s_idx) < Ptrofs.modulus).
+    { unfold MC.nstates, MC.nsyms in *. nia. }
   econstructor; try easy.
   - econstructor; cbn - [Pos.add]; try solve [constructor].
       apply alloc_idents_norepet.
@@ -610,14 +610,14 @@ Proof.
         -- cbn - [Pos.add].
            rewrite PTree.gso by (cbv [ids alloc_idents id_q id_s]; lia).
            apply PTree.gss.
-        -- unfold nstates, DC.nstates in Hq. lia.
-        -- unfold DC.nstates. lia.
-        -- now rewrite (proj2 (Z.ltb_lt _ _)) by (unfold DC.nstates in Hq; lia).
+        -- unfold nstates, MC.nstates in Hq. lia.
+        -- unfold MC.nstates. lia.
+        -- now rewrite (proj2 (Z.ltb_lt _ _)) by (unfold MC.nstates in Hq; lia).
       * (* right conjunct *)
         eapply eval_lt_test_gen with (j := s_idx) (bv := Int.one).
         -- cbn - [Pos.add]. apply PTree.gss.
-        -- unfold DC.nsyms in Hs. lia.
-        -- unfold DC.nsyms. lia.
+        -- unfold MC.nsyms in Hs. lia.
+        -- unfold MC.nsyms. lia.
         -- now rewrite (proj2 (Z.ltb_lt _ _)).
       * (* sem_binary_operation Oand *)
         cbn. unfold sem_and, sem_binarith, sem_cast, classify_cast,
@@ -638,13 +638,13 @@ Proof.
         -- (* q * |Sigma| + s *)
            unfold table_index.
            assert (Hqb : 0 <= q_idx <= Int64.max_unsigned).
-             { pose proof nstates_bound. unfold DC.nstates in Hq. lia. }
+             { pose proof nstates_bound. unfold MC.nstates in Hq. lia. }
            assert (Hsb : 0 <= s_idx <= Int64.max_unsigned).
-             { pose proof nsyms_bound. unfold nsyms, DC.nsyms in Hs.
+             { pose proof nsyms_bound. unfold nsyms, MC.nsyms in Hs.
               unfold Int64.max_unsigned. lia. }
-           assert (Hmb : 0 <= q_idx * DC.nsyms <= Int64.max_unsigned).
+           assert (Hmb : 0 <= q_idx * MC.nsyms <= Int64.max_unsigned).
              { pose proof nsyms_bound. pose proof ptrofs_le_int64.
-               unfold DC.nstates, DC.nsyms, Int64.max_unsigned in *. nia. }
+               unfold MC.nstates, MC.nsyms, Int64.max_unsigned in *. nia. }
            econstructor.
            ++ econstructor.
               ** econstructor. cbn - [Pos.add].
@@ -672,12 +672,12 @@ Proof.
           reflexivity.
         change Ptrofs.zero with (Ptrofs.repr 0).
         rewrite ptr_add_normalize by
-          (pose proof ptrofs_le_int64; unfold DC.nstates, DC.nsyms in *; nia).
+          (pose proof ptrofs_le_int64; unfold MC.nstates, MC.nsyms in *; nia).
         rewrite Z.add_0_l.
         eapply table_in_mem.
         -- exact Hsym.
         -- apply table_entry_correct; eassumption.
-        -- unfold DC.nstates, DC.nsyms in *. nia.
+        -- unfold MC.nstates, MC.nsyms in *. nia.
   - cbn. split. discriminate.
     unfold tlong, sem_cast, classify_cast. destruct Archi.ptr64; simpl;
       now rewrite (table_entry_sidx q sym next_idx H1).
@@ -726,7 +726,7 @@ Proof.
   - assert (Hq8 : 8 * Z.of_nat (Datatypes.length (states state moore))
                   <= 8 * (Z.of_nat (Datatypes.length (states state moore))
                           * Z.of_nat (Datatypes.length s.enum))) by nia.
-    unfold Ptrofs.max_unsigned, DC.nstates in *. lia.
+    unfold Ptrofs.max_unsigned, MC.nstates in *. lia.
 Qed.
 
 Lemma ptr_add_normalize_gen : forall sz ofs i,
@@ -758,8 +758,8 @@ Lemma compile_accept_correct : forall q q_idx,
 Proof.
   intros q q_idx Hq.
   destruct find_atable as (ab & Hsym & _).
-  assert (Hqb : 0 <= q_idx < DC.nstates state moore)
-    by (unfold sidx in Hq; apply index_of_bounds in Hq; unfold DC.nstates; lia).
+  assert (Hqb : 0 <= q_idx < MC.nstates state moore)
+    by (unfold sidx in Hq; apply index_of_bounds in Hq; unfold MC.nstates; lia).
   econstructor.
   - econstructor; cbn - [Pos.add]; try solve [constructor].
       constructor. now intro. constructor.
@@ -789,16 +789,16 @@ Proof.
         rewrite ptr_add_normalize_gen with (sz := 8); try lia.
         rewrite Z.add_0_l.
           eapply atable_in_mem; eauto using atable_entry_correct.
-          unfold DC.nstates in *.
+          unfold MC.nstates in *.
         assert (Hq8 : 8 * Z.of_nat (Datatypes.length (states state moore))
                 <= 8 * (Z.of_nat (Datatypes.length (states state moore))
                         * Z.of_nat (Datatypes.length s.enum)))
             by nia.
           lia.
-        assert (Hq8 : 8 * DC.nstates state moore
-                            <= 8 * (DC.nstates state moore * DC.nsyms)) by
-                (unfold DC.nstates, DC.nsyms in *; nia).
-              unfold DC.nstates, DC.nsyms in *; lia.
+        assert (Hq8 : 8 * MC.nstates state moore
+                            <= 8 * (MC.nstates state moore * MC.nsyms)) by
+                (unfold MC.nstates, MC.nsyms in *; nia).
+              unfold MC.nstates, MC.nsyms in *; lia.
   - cbn. split. discriminate. unfold sem_cast, tlong. simpl.
     now destruct Archi.ptr64.
   - reflexivity.
@@ -809,7 +809,7 @@ Qed.
 Lemma compile_delta_sink : forall q_idx s_idx m,
   0 <= q_idx < Int64.modulus ->
   0 <= s_idx < Int64.modulus ->
-  q_idx >= DC.nstates state moore ->
+  q_idx >= MC.nstates state moore ->
   eval_funcall function_entry2 ge m
     (compile_delta state moore ids)
     [Vlong (Int64.repr q_idx); Vlong (Int64.repr s_idx)] E0 m
@@ -837,7 +837,7 @@ Proof.
         -- reflexivity.
       * cbn. unfold sem_and, sem_binarith, sem_cast, classify_cast,
                     classify_binarith, tint. cbn.
-        destruct Archi.ptr64; cbn; destruct (s_idx <? DC.nsyms); reflexivity.
+        destruct Archi.ptr64; cbn; destruct (s_idx <? MC.nsyms); reflexivity.
     + apply bool_val_zero_int.
     + eapply exec_Sreturn_some. econstructor.
   - cbn. split. discriminate.
@@ -1010,7 +1010,7 @@ Lemma run_body_step : forall le m b ofs l i q_idx a_idx r_idx len,
       (PTree.set ids.(id_q) (Vlong (Int64.repr r_idx)) le))
     m Out_normal.
 Proof.
-  intros. unfold run_body, DC.run_body.
+  intros. unfold run_body, MC.run_body.
   change E0 with (E0 ** E0).
   econstructor.
   - econstructor.
@@ -1190,7 +1190,7 @@ Proof.
     unfold compile_run. econstructor.
     + (* function_entry2 *)
       econstructor; cbn - [Pos.add]; assumption || constructor.
-    + unfold DC.run_body. cbn [fn_body].
+    + unfold MC.run_body. cbn [fn_body].
       change E0 with (E0 ** E0).
       eapply exec_Sseq_1.
       * (* prologue ; loop *)

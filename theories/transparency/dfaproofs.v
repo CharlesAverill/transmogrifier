@@ -14,7 +14,7 @@ Module Correctness (s : Symbol) (DFA : DFAType s).
 Module DC := DFACompiler s DFA.
 
 Module M := mooreproofs.Correctness s DC.Out DC.Moore.
-Import M.DC.
+Import M.MC.
 
 Section coercion.
 Variable state : Type.
