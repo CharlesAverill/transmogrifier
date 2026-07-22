@@ -281,7 +281,7 @@ Definition run_body (ids : idents) : statement :=
         (Sassign
           (Ederef (Ebinop Oadd (Etempvar ids.(id_out) tlptr)
                      (Etempvar ids.(id_i) tlong) tlptr) tlong)
-          (Etempvar ids.(id_o) tlong))
+          (Evar ids.(id_o) tlong))
         (Sset ids.(id_i)
           (Ebinop Oadd (Etempvar ids.(id_i) tlong) (Econst_long (Int64.repr 1) tlong) tlong)))).
 

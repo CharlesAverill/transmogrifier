@@ -8,7 +8,7 @@ Currently-supported automata:
 - [x] DFAs
 - [x] NFAs (Incomplete correctness proof)
 - [x] Moore Machines
-- [x] Mealy Machines (Incomplete correctness proof)
+- [x] Mealy Machines
 
 ## Building
 
