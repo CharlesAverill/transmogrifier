@@ -58,7 +58,6 @@ struct
       let a = P.of_int (P.to_int base + offset) in
       Hashtbl.replace string_of_atom a name
     in
-    (* Must track [alloc_idents] in theories/compiler/dfa.v. *)
     reg 0 "delta" ;
     reg 1 "output" ;
     reg 2 "q0" ;
@@ -118,7 +117,6 @@ struct
       let a = P.of_int (P.to_int base + offset) in
       Hashtbl.replace string_of_atom a name
     in
-    (* Must track [alloc_idents] in theories/compiler/dfa.v. *)
     reg 0 "delta" ;
     reg 1 "accept" ;
     reg 2 "q0" ;
@@ -173,7 +171,6 @@ struct
       let a = P.of_int (P.to_int base + offset) in
       Hashtbl.replace string_of_atom a name
     in
-    (* Must track [alloc_idents] in theories/compiler/mealy.v. *)
     reg 0 "delta" ;
     reg 1 "q0" ;
     reg 2 "table" ;
@@ -227,15 +224,6 @@ struct
       let a = P.of_int (P.to_int base + offset) in
       Hashtbl.replace string_of_atom a name
     in
-    (* Must track [alloc_idents] in theories/compiler/nfa.v -- this is NOT
-       DFA's/Moore's layout, and was previously copy-pasted from there: the
-       function at offset 0 is [step] (an NFA transition takes and returns a
-       *set*, unlike a DFA's single-state [delta]), and the two bitmap globals
-       at offsets 3/4 are [init]/[final], not [q0]/[atable]. include/nfa.h.in
-       declares exactly these five names, so getting them wrong here doesn't
-       break the self-contained example (it never references [init]/[final]
-       by name) but silently breaks any consumer that follows the documented
-       header API and links against the emitted .c. *)
     reg 0 "delta" ;
     reg 1 "accept" ;
     reg 2 "table" ;
