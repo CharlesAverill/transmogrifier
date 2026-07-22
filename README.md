@@ -25,16 +25,10 @@ opam install . --deps-only
 
 # Build
 dune build
+
+# Run performance tests
+dune runtest
 ```
-
-## Correctness
-
-Verified against CompCert's Clight semantics in [`dfaproofs.v`](theories/transparency/dfaproofs.v):
-
-- `compile_delta_correct` - `delta(q_i, s_i)` evaluates to the index of `δ(q, s)`
-- `compile_delta_sink` - `delta` returns `|Q|` on out-of-range input
-- `compile_accept_correct` - `accept(q_i)` returns `1` iff `q \in F`
-- `compile_run_correct` - `run(w, |w|)` evaluates to the index of `δ*(q_0, w)`
 
 ## DFA Example
 

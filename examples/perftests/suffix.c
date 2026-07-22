@@ -1,13 +1,13 @@
 // ccomp -O3 -o suffix_perf examples/perftests/suffix.c examples/suffix.c -I examples/
 /*
-=== C Benchmark ===
-Processed Elements : 1000000
-Accepted           : false
-Execution Time     : 0.031168 seconds
 === OCaml Benchmark ===
 Processed Elements : 1000000
 Accepted           : false
-Execution Time     : 0.265897 seconds
+Execution Time     : 0.288550 seconds
+=== C Benchmark ===                  
+Processed Elements : 1000000
+Accepted           : false
+Execution Time     : 0.008649 seconds
 */
 /*
 # lscpu | grep -E 'Model name|Architecture|CPU\(s\):|cache'

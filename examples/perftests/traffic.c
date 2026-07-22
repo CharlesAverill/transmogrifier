@@ -1,30 +1,30 @@
-// ccomp -O3 -o vending_perf examples/perftests/vending.c examples/vending.c -I examples/
+// ccomp -O3 -o traffic_perf examples/perftests/traffic.c examples/traffic.c -I examples/
 /*
-=== C Benchmark ===
+=== OCaml Benchmark ===
 Processed Elements : 1000000
 Final State        : YELLOW
-Execution Time     : 0.005226 seconds
-=== OCaml Benchmark ===
-Processed Elements : 100
-Trace              : --BACK 15-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-VEND-BACK 10-
-Execution Time     : 0.000143 seconds
+Execution Time     : 0.197155 seconds
+=== C Benchmark ===                  
+Processed Elements : 1000000
+Final State        : YELLOW
+Execution Time     : 0.002738 seconds
 */
 /*
 # lscpu | grep -E 'Model name|Architecture|CPU\(s\):|cache'
 Architecture:                            x86_64
-CPU(s):                                  22
-Model name:                              Intel(R) Core(TM) Ultra 7 155H
-L1d cache:                               528 KiB (11 instances)
-L1i cache:                               704 KiB (11 instances)
-L2 cache:                                22 MiB (11 instances)
-L3 cache:                                24 MiB (1 instance)
-NUMA node0 CPU(s):                       0-21
+CPU(s):                                  4
+Model name:                              Intel(R) Core(TM) i5-7300U CPU @ 2.60GHz
+L1d cache:                               64 KiB (2 instances)
+L1i cache:                               64 KiB (2 instances)
+L2 cache:                                512 KiB (2 instances)
+L3 cache:                                3 MiB (1 instance)
+NUMA node0 CPU(s):                       0-3
 */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include "vending.h"
+#include "traffic.h"
 
 #define TEST_SIZE 1000000
 

@@ -1,24 +1,24 @@
 // ccomp -O3 -o mod3_perf examples/perftests/mod3.c examples/mod3.c -I examples/
 /*
-=== C Benchmark ===
-Processed Elements : 1000000
-Accepted           : false
-Execution Time     : 0.004282 seconds
 === OCaml Benchmark ===
 Processed Elements : 1000000
 Accepted           : false
-Execution Time     : 0.120146 seconds
+Execution Time     : 0.179735 seconds
+=== C Benchmark ===                  
+Processed Elements : 1000000
+Accepted           : false
+Execution Time     : 0.002200 seconds
 */
 /*
 # lscpu | grep -E 'Model name|Architecture|CPU\(s\):|cache'
 Architecture:                            x86_64
-CPU(s):                                  22
-Model name:                              Intel(R) Core(TM) Ultra 7 155H
-L1d cache:                               528 KiB (11 instances)
-L1i cache:                               704 KiB (11 instances)
-L2 cache:                                22 MiB (11 instances)
-L3 cache:                                24 MiB (1 instance)
-NUMA node0 CPU(s):                       0-21
+CPU(s):                                  4
+Model name:                              Intel(R) Core(TM) i5-7300U CPU @ 2.60GHz
+L1d cache:                               64 KiB (2 instances)
+L1i cache:                               64 KiB (2 instances)
+L2 cache:                                512 KiB (2 instances)
+L3 cache:                                3 MiB (1 instance)
+NUMA node0 CPU(s):                       0-3
 */
 
 #include <stdio.h>

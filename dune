@@ -1,1 +1,32 @@
 (vendored_dirs vendor)
+
+(rule
+ (alias runtest)
+ (deps
+  examples/alternating.exe
+  examples/mod3.exe
+  examples/div7.exe
+  examples/traffic.exe
+  examples/vending.exe
+  examples/suffix.exe
+  (glob_files examples/perftests/*)
+  (glob_files include/*))
+ (action
+  (progn
+   (run bash -c "echo 't.dfa.alternating' && %{bin:t.dfa.alternating} | grep -A 3 '=== OCaml Benchmark ==='")
+   (run bash -c "ccomp -O3 -o alt_perf   examples/perftests/alternating.c examples/alternating.c -I examples/ -I include/ && ./alt_perf   | grep -A 3 '=== C Benchmark ===' && rm ./alt_perf")
+
+   (run bash -c "echo 't.dfa.mod3' && %{bin:t.dfa.mod3} | grep -A 3 '=== OCaml Benchmark ==='")
+   (run bash -c "ccomp -O3 -o mod3_perf  examples/perftests/mod3.c        examples/mod3.c        -I examples/ -I include/ && ./mod3_perf  | grep -A 3 '=== C Benchmark ===' && rm ./mod3_perf")
+
+   (run bash -c "echo 't.dfa.div7' && %{bin:t.dfa.div7} | grep -A 3 '=== OCaml Benchmark ==='")
+   (run bash -c "ccomp -O3 -o div7_perf  examples/perftests/div7.c        examples/div7.c        -I examples/ -I include/ && ./div7_perf  | grep -A 3 '=== C Benchmark ===' && rm ./div7_perf")
+
+   (run bash -c "echo 't.moore.traffic' && %{bin:t.moore.traffic} | grep -A 3 '=== OCaml Benchmark ==='")
+   (run bash -c "ccomp -O3 -o traf_perf  examples/perftests/traffic.c     examples/traffic.c     -I examples/ -I include/ && ./traf_perf  | grep -A 3 '=== C Benchmark ===' && rm ./traf_perf")
+
+   (run bash -c "echo 't.mealy.vending' && %{bin:t.mealy.vending} | grep -A 3 '=== OCaml Benchmark ==='")
+   (run bash -c "ccomp -O3 -o vend_perf  examples/perftests/vending.c     examples/vending.c     -I examples/ -I include/ && ./vend_perf  | grep -A 3 '=== C Benchmark ===' && rm ./vend_perf")
+
+   (run bash -c "echo 't.nfa.suffix' && %{bin:t.nfa.suffix} | grep -A 3 '=== OCaml Benchmark ==='")
+   (run bash -c "ccomp -O3 -o suff_perf  examples/perftests/suffix.c      examples/suffix.c      -I examples/ -I include/ && ./suff_perf  | grep -A 3 '=== C Benchmark ===' && rm ./suff_perf"))))
