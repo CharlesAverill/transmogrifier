@@ -1,9 +1,7 @@
 From lstar Require Import automata.Mealy.
 From compcert Require Import AST Clight Ctypes Integers Cop Maps.
-From Transmogrifier Require Import Monads.
 From Stdlib Require Import String List ZArith.
 Import ListNotations.
-Open Scope result_scope.
 Open Scope string_scope.
 Open Scope Z_scope.
 
@@ -321,7 +319,7 @@ Definition compile_main (ids : idents) : Clight.fundef :=
     fn_body     := Sreturn (Some (Econst_int Int.zero tint32s))
   |}.
 
-Definition compile_program (base : ident) : result Clight.program :=
+Definition compile_program (base : ident) : result Clight.program string :=
   let ids := alloc_idents base in
   let defs : list (ident * globdef Clight.fundef type) :=
     [ (ids.(id_table),  Gvar (compile_table));
@@ -334,8 +332,8 @@ Definition compile_program (base : ident) : result Clight.program :=
           [ids.(id_delta); ids.(id_q0); ids.(id_table);
            ids.(id_otable); ids.(id_run); ids.(id_main)]
           ids.(id_main) with
-  | Errors.OK p => return p
-  | Errors.Error msg => fail E_msg "make_program failed"
+  | Errors.OK p => Ok p
+  | Errors.Error msg => Error ("make_program failed")
   end.
 
 End compiler.

@@ -4,7 +4,6 @@ open Teacher
 open Dfa
 open Nfa
 open Mealy
-open Monads
 
 (** A learner turns a teacher into a state machine over an opaque state type *)
 module type MOORELEARNER = functor (Tch : MOORETEACHER) -> sig
@@ -22,15 +21,6 @@ end
 module type MEALYLEARNER = functor (Tch : MEALYTEACHER) -> sig
   val learn : unit -> Obj.t Tch.M.t
 end
-
-let string_of_error = function
-  | E_msg c
-  | E_unsupported c
-  | E_invalid_type c
-  | E_invalid_value c
-  | E_multiply_defined c
-  | E_bad_identifier c ->
-      c
 
 let pretty_print (clight_prog : Clight.program) (output_fn : string) : unit =
   PrintClight.destination :=
@@ -90,7 +80,7 @@ struct
     name_idents base ;
     match Compiler.compile_program d eq_dec base with
     | Error e ->
-        Stdlib.Error ("Error: " ^ string_of_error e)
+        Stdlib.Error ("Error: " ^ e)
     | Ok p ->
         pretty_print p output_fn ; Stdlib.Ok ()
 end
@@ -150,7 +140,7 @@ struct
     name_idents base ;
     match Compiler.compile_program (moore_of_dfa d) eq_dec base with
     | Error e ->
-        Stdlib.Error ("Error: " ^ string_of_error e)
+        Stdlib.Error ("Error: " ^ e)
     | Ok p ->
         pretty_print p output_fn ; Stdlib.Ok ()
 end
@@ -205,7 +195,7 @@ struct
     name_idents base ;
     match Compiler.compile_program m eq_dec base with
     | Error e ->
-        Stdlib.Error ("Error: " ^ string_of_error e)
+        Stdlib.Error ("Error: " ^ e)
     | Ok p ->
         pretty_print p output_fn ; Stdlib.Ok ()
 end
@@ -267,7 +257,7 @@ struct
     name_idents base ;
     match Compiler.compile_program n eq_dec base with
     | Error e ->
-        Stdlib.Error ("Error: " ^ string_of_error e)
+        Stdlib.Error ("Error: " ^ e)
     | Ok p ->
         pretty_print p output_fn ; Stdlib.Ok ()
 end

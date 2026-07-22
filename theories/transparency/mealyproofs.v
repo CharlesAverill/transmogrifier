@@ -2,11 +2,9 @@ From lstar Require Import automata.Mealy.
 From compcert Require Import AST Clight Ctypes Integers Cop Maps.
 From compcert Require Import ClightBigstep Values Events Coqlib.
 From compcert Require Import Globalenvs Memory.
-From Transmogrifier Require Import Monads.
 From Transmogrifier.compiler Require Import mealy.
 From Stdlib Require Import List ZArith Lia.
 Import ListNotations.
-Open Scope result_scope.
 Open Scope Z_scope.
 
 (** Correctness of the Mealy -> Clight compiler. *)

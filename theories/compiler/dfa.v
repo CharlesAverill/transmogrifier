@@ -1,9 +1,8 @@
 From lstar Require Import automata.DFA.
 From compcert Require Import AST Clight Ctypes Integers Cop Maps.
-From Transmogrifier Require Import Monads moore.
+From Transmogrifier Require Import moore.
 From Stdlib Require Import String List ZArith Bool.
 Import ListNotations.
-Open Scope result_scope.
 Open Scope string_scope.
 Open Scope Z_scope.
 

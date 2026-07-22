@@ -1,12 +1,10 @@
 From lstar Require Import automata.DFA.
 From compcert Require Import AST Clight Ctypes Integers Values Coqlib.
 From compcert Require Import ClightBigstep Events Globalenvs Memory.
-From Transmogrifier Require Import Monads.
 From Transmogrifier.compiler Require Import dfa.
 From Transmogrifier.transparency Require Import mooreproofs.
 From Stdlib Require Import List ZArith Lia.
 Import ListNotations.
-Open Scope result_scope.
 Open Scope Z_scope.
 
 (** Correctness of the DFA -> Clight compiler *)
