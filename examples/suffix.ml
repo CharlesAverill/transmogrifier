@@ -1,4 +1,4 @@
-open Lstar
+open NLstar
 open DFA
 open NFA
 open Specif

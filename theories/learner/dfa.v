@@ -25,22 +25,23 @@ Definition learned_dfa : L.D.t LSt := proj1_sig (projT2 learned).
 
 Definition base : positive := 1.
 
-Parameter p : Clight.program.
-Parameter m0 : mem.
+Section correctness.
+Variable p : Clight.program.
+Variable m0 : mem.
 Definition ge := M.ge p.
 Definition m := moore_of_dfa LSt learned_dfa.
 
 (* The learned DFA has compiled successfully and is well-formed *)
-Parameter state_eq_dec : forall (x y : LSt), {x = y} + {x <> y}.
-Parameter compile_ok :
+Variable state_eq_dec : forall (x y : LSt), {x = y} + {x <> y}.
+Variable compile_ok :
     compile_program LSt (moore_of_dfa LSt learned_dfa) state_eq_dec base = Ok p.
-Parameter m0_ok :
+Variable m0_ok :
     Genv.init_mem p = Some m0.
-Parameter states_ok :
+Variable states_ok :
     Z.of_nat (Datatypes.length (Moore.states LSt m)) < Int64.modulus.
-Parameter alphabet_ok :
+Variable alphabet_ok :
     0 < Z.of_nat (Datatypes.length s.enum) < Int64.modulus.
-Parameter states_alphabet_ok :
+Variable states_alphabet_ok :
     8 * (Z.of_nat (Datatypes.length (Moore.states LSt m)) *
          Z.of_nat (Datatypes.length s.enum)) < Ptrofs.modulus.
 
@@ -59,13 +60,8 @@ Theorem run_equiv : forall w l b ofs,
       [Vptr b (Ptrofs.repr ofs); Vlong (Int64.repr (Z.of_nat (length w)))] E0 m0
       (Vlong (Int64.repr r_idx)).
 Proof.
-    intros. eapply compile_run_correct; eauto.
-    apply states_ok.
-    apply alphabet_ok.
+    eapply compile_run_correct; eauto.
     unfold Out.enum. simpl. now compute.
-    apply compile_ok.
-    apply m0_ok.
-    apply states_alphabet_ok.
 Qed.
 
 (* A word is in L iff the compiled DFA, run from q0 on w, 
@@ -103,4 +99,5 @@ Proof.
       now destruct D.accept.
 Qed.
 
+End correctness.
 End CompileLearnedDFA.

@@ -1,0 +1,7 @@
+(executable
+ (name learn_compile)
+ (public_name t.mealy.session)
+ (libraries lstar unix str transmogrifier)
+ (flags
+  (:standard -w -26))
+ (package transmogrifier))

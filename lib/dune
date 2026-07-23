@@ -21,6 +21,7 @@
   Defs
   Errors
   Floats
+  Globalenvs
   Hexadecimal
   IEEE754_extra
   IntDef
@@ -72,6 +73,7 @@
   Defs
   Errors
   Floats
+  Globalenvs
   Hexadecimal
   IEEE754_extra
   IntDef

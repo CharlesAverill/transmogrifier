@@ -1,6 +1,6 @@
 (* European-style 4-phase traffic light *)
 
-open Lstar
+open Lstar_Moore
 open Alphabet
 open Moore
 open Specif

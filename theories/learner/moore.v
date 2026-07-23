@@ -25,23 +25,23 @@ Definition learned_moore : L.M.t LSt := proj1_sig (projT2 learned).
 
 Definition base : positive := 1.
 
-Parameter p : Clight.program.
-Parameter m0 : mem.
-Definition ge := ge p.
-
 (* The learned Moore machine has compiled successfully and is well-formed *)
-Parameter state_eq_dec : forall (x y : LSt), {x = y} + {x <> y}.
-Parameter compile_ok :
+Section correctness.
+Variable p : Clight.program.
+Variable m0 : mem.
+Definition ge := ge p.
+Variable state_eq_dec : forall (x y : LSt), {x = y} + {x <> y}.
+Variable compile_ok :
     compile_program LSt learned_moore state_eq_dec base = Ok p.
-Parameter m0_ok :
+Variable m0_ok :
     Genv.init_mem p = Some m0.
-Parameter states_ok :
+Variable states_ok :
     Z.of_nat (Datatypes.length (M.states LSt learned_moore)) < Int64.modulus.
-Parameter alphabet_ok :
+Variable alphabet_ok :
     0 < Z.of_nat (Datatypes.length s.enum) < Int64.modulus.
-Parameter output_alphabet_ok :
+Variable output_alphabet_ok :
     0 < Z.of_nat (length O.enum) < Int64.modulus.
-Parameter states_alphabet_ok :
+Variable states_alphabet_ok :
     8 * (Z.of_nat (Datatypes.length (M.states LSt learned_moore)) *
          Z.of_nat (Datatypes.length s.enum)) < Ptrofs.modulus.
 
@@ -60,13 +60,7 @@ Theorem run_equiv : forall w l b ofs,
       [Vptr b (Ptrofs.repr ofs); Vlong (Int64.repr (Z.of_nat (length w)))] E0 m0
       (Vlong (Int64.repr r_idx)).
 Proof.
-    intros. eapply compile_run_correct; eauto.
-    apply states_ok.
-    apply alphabet_ok.
-    apply output_alphabet_ok.
-    apply compile_ok.
-    apply m0_ok.
-    apply states_alphabet_ok.
+    eauto using compile_run_correct.
 Qed.
 
 (* The output of learned_moore for a string w is the same as its compiled form *)
@@ -113,4 +107,5 @@ Proof.
     + unfold q. rewrite <- (Henc w). reflexivity.
 Qed.
 
+End correctness.
 End CompileLearnedMoore.

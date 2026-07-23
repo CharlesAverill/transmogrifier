@@ -1,4 +1,4 @@
-open Lstar
+open Lstar_DFA
 open Alphabet
 open DFA
 open Specif

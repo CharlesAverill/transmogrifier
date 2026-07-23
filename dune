@@ -9,6 +9,7 @@
   examples/traffic.exe
   examples/vending.exe
   examples/suffix.exe
+  examples/session/learn_compile.exe
   (glob_files examples/perftests/*)
   (glob_files include/*))
  (action

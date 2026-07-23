@@ -1,7 +1,7 @@
 (* Coin-operated vending machine: a 30c item, coins of 5/10/25, and a
    refund lever *)
 
-open Lstar
+open Lstar_Mealy
 open Alphabet
 open Mealy
 open Specif
