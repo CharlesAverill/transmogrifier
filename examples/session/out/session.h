@@ -17,7 +17,7 @@ typedef unsigned long long mealy_output_t; /* 0..MEALY_NOUTS-1, or the sink */
 typedef const mealy_symbol_t *mealy_word_t;
 
 #define MEALY_NSTATES 4ULL
-#define MEALY_NSYMS   5ULL
+#define MEALY_NSYMS   6ULL
 #define MEALY_NOUTS   5ULL
 
 /** Returned by delta, and written through *out, when either index is out of range. */
@@ -33,10 +33,11 @@ typedef const mealy_symbol_t *mealy_word_t;
 typedef enum {
     SYM_H = 0ULL, /* "h" */
     SYM_A = 1ULL, /* "a" */
-    SYM_R = 2ULL, /* "r" */
-    SYM_K = 3ULL, /* "k" */
-    SYM_X = 4ULL, /* "x" */
-    SYM_COUNT = 5ULL /* |Sigma|; delta's out-of-range threshold */
+    SYM_B = 2ULL, /* "b" */
+    SYM_R = 3ULL, /* "r" */
+    SYM_K = 4ULL, /* "k" */
+    SYM_X = 5ULL, /* "x" */
+    SYM_COUNT = 6ULL /* |Sigma|; delta's out-of-range threshold */
 } input_sym_t;
 
 /* ---- Output symbols, in O.enum order ---- */

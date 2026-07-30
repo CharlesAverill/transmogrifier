@@ -9,9 +9,12 @@ enc() {
   python3 -c '
 import sys
 w = sys.argv[1]; tok = sys.argv[2].encode()
+bad = b"z" * len(tok)
 o = bytearray()
 for c in w:
-    o += (b"a" + bytes([len(tok)]) + tok) if c == "a" else c.encode()
+    if c == "a":   o += b"a" + bytes([len(tok)]) + tok
+    elif c == "b": o += b"a" + bytes([len(bad)]) + bad
+    else:          o += c.encode()
 sys.stdout.buffer.write(o)' "$1" "$SECRET"
 }
 
@@ -44,7 +47,7 @@ for c in ccomp gcc clang cc; do
   fi
 done
 
-ccomp -O3 -o "$LEGACY" "$DIR/session_legacy.c" || exit 1
+gcc -O3 -o "$LEGACY" "$DIR/session_legacy.c" || exit 1
 
 hdr "1. legacy normal operation"
 enc harkr | "$LEGACY"
@@ -76,7 +79,7 @@ enc harkr | "$MODERN"
 
 echo
 printf '%-8s %-34s %-34s %s\n' "Token" "Legacy Response" "Modern Response" "Matching"
-for w in h a r x ha har hark harkr rrr hax kkk harxr harrr; do
+for w in h a r x ha har hark harkr rrr hax kkk harxr harrr b hb hba hbr hbar; do
   L=$(enc "$w" | "$LEGACY" 2>/dev/null | tr '\n' ' ')
   C=$(enc "$w" | "$MODERN" 2>/dev/null | tr '\n' ' ')
   [ "$L" = "$C" ] && s=ok || s=DIFF

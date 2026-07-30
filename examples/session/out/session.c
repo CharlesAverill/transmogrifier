@@ -1,17 +1,19 @@
 unsigned long long delta(unsigned long long, unsigned long long, unsigned long long *);
 void run(unsigned long long *, unsigned long long, unsigned long long *);
 int $13(void);
-unsigned long long const table[20] = { 0LL, 0LL, 0LL, 0LL, 1LL, 1LL, 1LL,
-  1LL, 1LL, 1LL, 2LL, 0LL, 2LL, 2LL, 1LL, 2LL, 3LL, 3LL, 3LL, 1LL, };
+unsigned long long const table[24] = { 0LL, 0LL, 0LL, 0LL, 0LL, 1LL, 1LL,
+  1LL, 1LL, 1LL, 1LL, 1LL, 2LL, 0LL, 2LL, 2LL, 2LL, 1LL, 2LL, 3LL, 3LL, 3LL,
+  3LL, 1LL, };
 
-unsigned long long const otable[20] = { 0LL, 0LL, 3LL, 2LL, 4LL, 4LL, 4LL,
-  4LL, 4LL, 4LL, 0LL, 2LL, 0LL, 2LL, 4LL, 1LL, 0LL, 0LL, 0LL, 4LL, };
+unsigned long long const otable[24] = { 0LL, 0LL, 0LL, 3LL, 2LL, 4LL, 4LL,
+  4LL, 4LL, 4LL, 4LL, 4LL, 0LL, 2LL, 0LL, 0LL, 2LL, 4LL, 1LL, 0LL, 0LL, 0LL,
+  0LL, 4LL, };
 
 unsigned long long delta(unsigned long long $5, unsigned long long $6, unsigned long long *$7)
 {
-  if ($5 < 4LLU & $6 < 5LLU) {
-    *$7 = *(otable + ($5 * 5LLU + $6));
-    return *(table + ($5 * 5LLU + $6));
+  if ($5 < 4LLU & $6 < 6LLU) {
+    *$7 = *(otable + ($5 * 6LLU + $6));
+    return *(table + ($5 * 6LLU + $6));
   } else {
     *$7 = 5LLU;
     return 4LLU;

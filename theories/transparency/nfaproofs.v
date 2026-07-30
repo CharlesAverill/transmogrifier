@@ -891,6 +891,47 @@ Proof.
   unfold NC.nwords. pose proof (Z.le_max_l 1 ((Z.of_nat (length nfa.(states _)) + 63) / 64)). lia.
 Qed.
 
+Lemma sizeof_tlong : sizeof ge tlong = 8.
+Proof. reflexivity. Qed.
+
+Lemma idx_addr : forall jz,
+  0 <= jz < Int64.modulus ->
+  Ptrofs.add (Ptrofs.repr 0)
+    (Ptrofs.mul (Ptrofs.repr (sizeof ge tlong))
+                (Ptrofs.of_int64 (Int64.repr jz)))
+  = Ptrofs.repr (8 * jz).
+Proof.
+  intros jz Hjz.
+  rewrite sizeof_tlong, Ptrofs.add_zero_l.
+  unfold Ptrofs.of_int64.
+  rewrite (Int64.unsigned_repr jz) by (unfold Int64.max_unsigned; lia).
+  (* product of two [repr]s is the [repr] of the product *)
+  unfold Ptrofs.mul.
+  apply Ptrofs.eqm_samerepr.
+  apply Ptrofs.eqm_mult; apply Ptrofs.eqm_sym, Ptrofs.eqm_unsigned_repr.
+Qed.
+
+Lemma idx_addr_ofs : forall ofs jz,
+  0 <= ofs -> 0 <= jz < Int64.modulus ->
+  ofs + 8 * jz < Ptrofs.modulus ->
+  Ptrofs.add (Ptrofs.repr ofs)
+    (Ptrofs.mul (Ptrofs.repr (sizeof ge tlong))
+                (Ptrofs.of_int64 (Int64.repr jz)))
+  = Ptrofs.repr (ofs + 8 * jz).
+Proof.
+  intros ofs jz Hofs Hjz Hlt.
+  rewrite sizeof_tlong.
+  unfold Ptrofs.of_int64.
+  rewrite (Int64.unsigned_repr jz) by (unfold Int64.max_unsigned; lia).
+  apply Ptrofs.eqm_samerepr.
+  unfold Ptrofs.add, Ptrofs.mul.
+  apply Ptrofs.eqm_add.
+  - apply Ptrofs.eqm_sym, Ptrofs.eqm_unsigned_repr.
+  - eapply Ptrofs.eqm_trans.
+    + apply Ptrofs.eqm_sym, Ptrofs.eqm_unsigned_repr.
+    + apply Ptrofs.eqm_mult; apply Ptrofs.eqm_sym, Ptrofs.eqm_unsigned_repr.
+Qed.
+
 Lemma eval_lt_test_gen : forall e le m v j k bv,
   le ! v = Some (Vlong (Int64.repr j)) ->
   0 <= j < Int64.modulus -> 0 <= k < Int64.modulus ->
@@ -1053,21 +1094,20 @@ Proof.
                  --- cbn. unfold sem_cast, classify_cast, tlong. cbn.
                      destruct Archi.ptr64; reflexivity.
                  --- eapply assign_loc_value; [reflexivity|].
-                     (* the pointer arithmetic lands on ofs_next + 8*j0 *)
                      replace (Ptrofs.add (Ptrofs.repr ofs_next)
-                                (Ptrofs.mul (Ptrofs.repr (sizeof ge tlong))
-                                            (Ptrofs.of_int64 (Int64.repr j0))))
+                                (Ptrofs.mul (Ptrofs.repr 8)
+                                   (Ptrofs.repr (Int64.unsigned (Int64.repr j0)))))
                        with (Ptrofs.repr (ofs_next + 8 * j0)).
-                     +++ admit.
-                     +++ unfold Ptrofs.of_int64, Ptrofs.mul, Ptrofs.add.
-                         cbn [sizeof].
-                         rewrite !Ptrofs.unsigned_repr_eq, Int64.unsigned_repr.
-                         apply Ptrofs.eqm_samerepr.
-                         unfold Ptrofs.eqm, eqmod. exists 0.
-                          rewrite Z.mul_0_l, Z.add_0_l. admit.
-                         split. lia. apply Zsucc_le_reg.
-                         change (Z.succ Int64.max_unsigned) with Int64.modulus.
-                         apply Zlt_le_succ. lia.
+                     +++ exact Hst.
+                     +++ symmetry. apply Ptrofs.eqm_samerepr.
+                         rewrite Int64.unsigned_repr by (unfold Int64.max_unsigned; lia).
+                         unfold Ptrofs.add, Ptrofs.mul.
+                         apply Ptrofs.eqm_add.
+                         *** apply Ptrofs.eqm_sym, Ptrofs.eqm_unsigned_repr.
+                         *** eapply Ptrofs.eqm_trans;
+                               [ apply Ptrofs.eqm_sym, Ptrofs.eqm_unsigned_repr
+                               | apply Ptrofs.eqm_mult;
+                                   apply Ptrofs.eqm_sym, Ptrofs.eqm_unsigned_repr ].
            ++ constructor.
            ++ (* the increment *)
               unfold le1. eapply exec_Sset.
@@ -1079,7 +1119,12 @@ Proof.
                  destruct Archi.ptr64; cbn; do 2 f_equal;
                    now rewrite Int64.add_unsigned, !Int64.unsigned_repr_eq,
                      Zplus_mod_idemp_l, Zplus_mod_idemp_r.
-           ++ admit.
+           ++ (* the loop continues from [le1, m1]; that is exactly the IH's run *)
+              replace (Int64.add (Int64.repr j0) (Int64.repr 1)) with (Int64.repr (j0 + 1)).
+                exact Hexec.
+              symmetry. apply Int64.eqm_samerepr.
+                unfold Int64.add.
+                apply Int64.eqm_add; apply Int64.eqm_sym, Int64.eqm_unsigned_repr.
         -- (* words [j0, nwords) are zero: j0 by the store, the rest by IH *)
            intros k Hk.
            destruct (Z.eq_dec k j0) as [->|Hkne].
@@ -1096,7 +1141,7 @@ Proof.
         -- eapply Mem.unchanged_on_trans; [|exact Hunch].
            eapply set_store_unchanged; eauto; try lia;
              [exact (proj1 Hspan) | destruct Hspan as (_&_&H); exact H].
-Admitted.
+Qed. (* UNVERIFIED against build; no admits remain *)
 
 Lemma zero_next_correct : forall le m b_next ofs_next,
   set_span_ok ofs_next ->
@@ -1114,7 +1159,7 @@ Proof.
   destruct (zero_next_loop_correct (Z.to_nat nwords) 0 le0 m b_next ofs_next)
     as (le' & m' & Hexec & Hzero & _ & Hw' & Htmp & Hunch); try lia.
   - pose proof nwords_pos. lia.
-  - admit.
+  - exact Hspan.
   - unfold le0. rewrite PTree.gso by
       (cbv [ids alloc_idents id_next id_j]; lia). exact Hnext.
   - unfold le0. now rewrite PTree.gss.
@@ -1130,7 +1175,7 @@ Proof.
       intros i v Hij Hv. apply Htmp; [exact Hij|].
       unfold le0. rewrite PTree.gso by (intro; congruence). exact Hv.
     + exact Hunch.
-Admitted.
+Qed.
 
 (** The table row for the state at global index [gi], as an index list. *)
 Definition row_of (gi : Z) (a : s.t) : list Z :=
@@ -1141,16 +1186,62 @@ Definition row_of (gi : Z) (a : s.t) : list Z :=
 
 (** Word [j] of the row lives at flat table index [(gi*nsyms+ai)*nwords+j], and
     [table_row_correct] + [table_in_mem] say what is there. *)
-Lemma table_row_load : forall b_tab gi ai a j,
+(** The table is a read-only global; every load from its block returns the same
+    value as in [m0].  This is exactly what survives the writes [step] performs,
+    because those writes only ever hit the (writable, distinct) [next] block.
+    Threading this predicate through the loop lemmas -- rather than the far
+    stronger [m = m0] -- is what lets them run on the post-[zero_next] memory. *)
+Definition table_readable (m : mem) (b_tab : block) : Prop :=
+  forall ofs v,
+    Mem.loadv Mint64 m0 (Vptr b_tab ofs) = Some v ->
+    Mem.loadv Mint64 m  (Vptr b_tab ofs) = Some v.
+
+Lemma table_readable_m0 : forall b_tab, table_readable m0 b_tab.
+Proof. now intros b_tab ofs v H. Qed.
+
+(** A store outside the table block preserves readability. *)
+Lemma table_readable_store : forall m m' b_tab b' ofs' v',
+  b' <> b_tab ->
+  Mem.storev Mint64 m (Vptr b' ofs') (Vlong v') = Some m' ->
+  table_readable m b_tab ->
+  table_readable m' b_tab.
+Proof.
+  intros m m' b_tab b' ofs' v' Hne Hst Hread ofs v Hload.
+  specialize (Hread ofs v Hload). cbn [Mem.loadv] in *.
+  erewrite Mem.load_store_other with (m1 := m); [exact Hread | | ].
+  - (* the store: Hst, after cbn *)
+    cbn [Mem.storev] in Hst. exact Hst.
+  - (* disjointness: different blocks *)
+    left. now symmetry.
+Qed.
+
+(** Readability is preserved along any [unchanged_on] that keeps the table block
+    fixed -- in particular the [outside_set b_next ofs_next] the loops produce,
+    since [b_next <> b_tab]. *)
+Lemma table_readable_unchanged : forall m m' b_tab b_next ofs_next,
+  b_next <> b_tab ->
+  table_readable m b_tab ->
+  Mem.unchanged_on (outside_set b_next ofs_next) m m' ->
+  table_readable m' b_tab.
+Proof.
+  intros m m' b_tab b_next ofs_next Hne Hread Hunch ofs v Hload.
+  specialize (Hread ofs v Hload). cbn [Mem.loadv] in *.
+  eapply Mem.load_unchanged_on; [exact Hunch| |exact Hread].
+  intros i Hi. unfold outside_set. left. congruence.
+Qed.
+
+Lemma table_row_load : forall m b_tab gi ai a j,
+  table_readable m b_tab ->
   Genv.find_symbol ge ids.(id_table) = Some b_tab ->
   0 <= gi < nstates ->
   index_of s.eq_dec a s.enum 0 = Some ai ->
   0 <= j < nwords ->
   (exists q, nth_error nfa.(states _) (Z.to_nat gi) = Some q /\ sidx q = Some gi) ->
-  Mem.loadv Mint64 m0 (Vptr b_tab (Ptrofs.repr (8 * ((gi * nsyms + ai) * nwords + j))))
+  Mem.loadv Mint64 m (Vptr b_tab (Ptrofs.repr (8 * ((gi * nsyms + ai) * nwords + j))))
   = Some (Vlong (Int64.repr (word_of_indices (row_of gi a) j))).
 Proof.
-  intros b_tab gi ai a j Hsym Hgi Ha Hj (q & Hnth & Hq).
+  intros m b_tab gi ai a j Hread Hsym Hgi Ha Hj (q & Hnth & Hq).
+  apply Hread.
   unfold row_of. rewrite Hnth.
   eapply table_in_mem; eauto.
   - eapply table_row_correct; eauto.
@@ -1181,7 +1272,133 @@ Proof.
       exact H_dim3.
 Qed.
 
+(** [word_of_indices] of an append is the [lor] of the two words. *)
+Lemma word_of_indices_app : forall S1 S2 k,
+  0 <= k ->
+  word_of_indices (S1 ++ S2) k
+  = Z.lor (word_of_indices S1 k) (word_of_indices S2 k).
+Proof.
+  intros S1 S2 k Hk.
+  apply Z.bits_inj'. intros b Hb.
+  destruct (Z.ltb b 64) eqn:Eb.
+  - apply Z.ltb_lt in Eb.
+    rewrite Z.lor_spec.
+    (* Decide membership of [64*k+b] in the append and reflect it through the
+       three [word_of_indices_spec] instances.  [In] distributes over [++]. *)
+    destruct (in_dec Z.eq_dec (64 * k + b) (S1 ++ S2)) as [Hin|Hnin].
+    + (* present in the append: LHS bit is set, and present in S1 or S2 *)
+      rewrite (proj2 (word_of_indices_spec (S1 ++ S2) k b Hk ltac:(lia)) Hin).
+      symmetry. apply orb_true_iff.
+      apply in_app_or in Hin as [Hin|Hin];
+        [ left;  apply (word_of_indices_spec S1 k b Hk ltac:(lia)); exact Hin
+        | right; apply (word_of_indices_spec S2 k b Hk ltac:(lia)); exact Hin ].
+    + (* absent from the append: LHS bit clear, and absent from both S1, S2 *)
+      assert (E : Z.testbit (word_of_indices (S1 ++ S2) k) b = false).
+      { destruct (Z.testbit (word_of_indices (S1 ++ S2) k) b) eqn:E; [|reflexivity].
+        apply (word_of_indices_spec (S1 ++ S2) k b Hk ltac:(lia)) in E.
+        contradiction. }
+      rewrite E. symmetry. apply orb_false_iff. split.
+      * destruct (Z.testbit (word_of_indices S1 k) b) eqn:E1; [|reflexivity].
+        apply (word_of_indices_spec S1 k b Hk ltac:(lia)) in E1.
+        exfalso. apply Hnin, in_or_app. now left.
+      * destruct (Z.testbit (word_of_indices S2 k) b) eqn:E2; [|reflexivity].
+        apply (word_of_indices_spec S2 k b Hk ltac:(lia)) in E2.
+        exfalso. apply Hnin, in_or_app. now right.
+  - apply Z.ltb_ge in Eb.
+    rewrite Z.lor_spec, !word_of_indices_high by lia. reflexivity.
+Qed.
+
 (** The row-union loop, generalized over [j0] exactly as [zero_next_loop]. *)
+(** Evaluate a set-pointer index expression [idx (Etempvar base) (Etempvar off)]
+    to the value loaded at [b + 8*offv], given the temp bindings and the load.
+    This is the read half of every set access in the loops. *)
+Lemma eval_idx_load : forall e le m off b ofsb offv v,
+  le ! base = Some (Vptr b (Ptrofs.repr ofsb)) ->
+  le ! off  = Some (Vlong (Int64.repr offv)) ->
+  0 <= offv < Int64.modulus ->
+  0 <= ofsb -> ofsb + 8 * offv < Ptrofs.modulus ->
+  Mem.loadv Mint64 m (Vptr b (Ptrofs.repr (ofsb + 8 * offv))) = Some v ->
+  eval_expr ge e le m
+    (idx (Etempvar base tsetptr) (Etempvar off tlong)) v.
+Proof.
+  intros e le m off b ofsb offv v Hbase Hoff Hoffv Hofsb Hlt Hload.
+  unfold idx.
+  eapply eval_Elvalue.
+  - econstructor.
+    econstructor.
+        econstructor. eassumption.
+        econstructor. eassumption.
+      cbn. unfold sem_add, classify_add, tsetptr, tlong. cbn.
+      destruct Archi.ptr64 eqn:E; cbn; [|discriminate].
+      unfold Ptrofs.of_int64. reflexivity.
+  - (* deref_loc at the reduced address *)
+    replace (Ptrofs.add (Ptrofs.repr ofsb)
+               (Ptrofs.mul (Ptrofs.repr 8)
+                           (Ptrofs.repr (Int64.unsigned (Int64.repr offv)))))
+      with (Ptrofs.repr (ofsb + 8 * offv))
+      by (symmetry; apply idx_addr_ofs; lia).
+    now eapply deref_loc_value.
+Qed.
+
+(** The table-index address expression reduces to [8 * ((gi*nsyms+ai)*nwords +
+    j0)] given [id_k = gi/64], [id_q = gi mod 64], [id_s = ai], [id_j = j0], and
+    [gi = 64*(gi/64) + gi mod 64].  Evaluated as an lvalue whose block is the
+    table and whose offset is that flat index times 8. *)
+Lemma eval_table_idx_load : forall e le m b_tab gi ai j0 v,
+  Genv.find_symbol ge ids.(id_table) = Some b_tab ->
+  le ! (ids.(id_k)) = Some (Vlong (Int64.repr (gi / 64))) ->
+  le ! (ids.(id_q)) = Some (Vlong (Int64.repr (gi mod 64))) ->
+  le ! (ids.(id_s)) = Some (Vlong (Int64.repr ai)) ->
+  le ! (ids.(id_j)) = Some (Vlong (Int64.repr j0)) ->
+  0 <= gi < nstates -> 0 <= ai < nsyms -> 0 <= j0 < nwords ->
+  Mem.loadv Mint64 m
+    (Vptr b_tab (Ptrofs.repr (8 * ((gi * nsyms + ai) * nwords + j0)))) = Some v ->
+  eval_expr ge e le m
+    (idx (Evar ids.(id_table) (table_type _ nfa))
+      (Ebinop Oadd
+        (Ebinop Omul
+          (Ebinop Oadd
+            (Ebinop Omul
+              (Ebinop Oadd
+                (Ebinop Omul (Etempvar ids.(id_k) tlong) (const 64) tlong)
+                (Etempvar ids.(id_q) tlong) tlong)
+              (const nsyms) tlong)
+            (Etempvar ids.(id_s) tlong) tlong)
+          (const nwords) tlong)
+        (Etempvar ids.(id_j) tlong) tlong)) v.
+Proof.
+  (* The integer arithmetic [((gi/64)*64 + gi mod 64)*nsyms + ai)*nwords + j0
+     = (gi*nsyms + ai)*nwords + j0] uses [Z.div_add' / Z.mod_add] via
+     [Z.div_mod gi 64].  The [eval_expr] for the nested [Ebinop]s is mechanical
+     ([econstructor] per node, [Etempvar]/[const] leaves), and the final
+     [deref_loc_value] uses the address reduction analogous to [idx_addr_ofs] but
+     for the [8 * flat] form.  Marked [admit]: the address normalization for the
+     table (the [8 * ...] Ptrofs step) and the [Int64]-level flattening of the
+     nested products. *)
+  admit.
+Admitted.
+
+Lemma word_of_indices_row_load :
+  (* the [j]-th word of the table row for [gi] on [a], as loaded from the table
+     global, equals [word_of_indices (row_of gi a) j] -- the driver for the
+     [Oor] step below. *)
+  forall m b_tab gi ai a j,
+    table_readable m b_tab ->
+    Genv.find_symbol ge ids.(id_table) = Some b_tab ->
+    0 <= gi < nstates ->
+    index_of s.eq_dec a s.enum 0 = Some ai ->
+    0 <= j < nwords ->
+    (exists q, nth_error nfa.(states _) (Z.to_nat gi) = Some q /\ sidx q = Some gi) ->
+    Mem.loadv Mint64 m
+      (Vptr b_tab (Ptrofs.repr (8 * ((gi * nsyms + ai) * nwords + j))))
+    = Some (Vlong (Int64.repr (word_of_indices (row_of gi a) j))).
+Proof. intros. now apply table_row_load. Qed.
+
+(** The row-union loop, generalized over [j0] exactly as [zero_next_loop].  Runs
+    the bare [Sloop] (not [union_row], which prefixes [Sset j 0]); the seeding is
+    done in [union_row_correct].  The two load hypotheses split [next] at [j0]:
+    below [j0] it already holds the union [S ++ row], at and above it still holds
+    [S].  Each iteration OR-s the [j0]-th table-row word into [next[j0]]. *)
 Lemma union_row_loop_correct : forall fuel j0 le m b_next ofs_next b_tab gi ai a S,
   (Z.to_nat (nwords - j0) <= fuel)%nat ->
   0 <= j0 <= nwords ->
@@ -1191,7 +1408,7 @@ Lemma union_row_loop_correct : forall fuel j0 le m b_next ofs_next b_tab gi ai a
   index_of s.eq_dec a s.enum 0 = Some ai ->
   (exists q, nth_error nfa.(states _) (Z.to_nat gi) = Some q /\ sidx q = Some gi) ->
   b_next <> b_tab ->
-  m = m0 ->
+  table_readable m b_tab ->
   le ! (ids.(id_next)) = Some (Vptr b_next (Ptrofs.repr ofs_next)) ->
   le ! (ids.(id_j)) = Some (Vlong (Int64.repr j0)) ->
   le ! (ids.(id_k)) = Some (Vlong (Int64.repr (gi / 64))) ->
@@ -1205,19 +1422,202 @@ Lemma union_row_loop_correct : forall fuel j0 le m b_next ofs_next b_tab gi ai a
      = Some (Vlong (Int64.repr (word_of_indices S k)))) ->
   set_writable m b_next ofs_next ->
   exists le' m',
-    exec_stmt function_entry2 ge empty_env le m (union_row state nfa ids) E0 le' m' Out_normal /\
+    exec_stmt function_entry2 ge empty_env le m
+      (Sloop
+        (Ssequence
+          (Sifthenelse (lt_test ids.(id_j) nwords) Sskip Sbreak)
+          (Sassign
+            (idx (Etempvar ids.(id_next) tsetptr) (Etempvar ids.(id_j) tlong))
+            (Ebinop Oor
+              (idx (Etempvar ids.(id_next) tsetptr) (Etempvar ids.(id_j) tlong))
+              (idx (Evar ids.(id_table) (table_type _ nfa))
+                (Ebinop Oadd
+                  (Ebinop Omul
+                    (Ebinop Oadd
+                      (Ebinop Omul
+                        (Ebinop Oadd
+                          (Ebinop Omul (Etempvar ids.(id_k) tlong) (const 64) tlong)
+                          (Etempvar ids.(id_q) tlong) tlong)
+                        (const nsyms) tlong)
+                      (Etempvar ids.(id_s) tlong) tlong)
+                    (const nwords) tlong)
+                  (Etempvar ids.(id_j) tlong) tlong))
+              tlong)))
+        (Sset ids.(id_j)
+          (Ebinop Oadd (Etempvar ids.(id_j) tlong) (const 1) tlong)))
+      E0 le' m' Out_normal /\
     set_in_mem m' b_next ofs_next (S ++ row_of gi a) /\
     set_writable m' b_next ofs_next /\
     Mem.unchanged_on (outside_set b_next ofs_next) m m'.
 Proof.
-Admitted. (* Same fuel induction as zero_next_loop_correct: each iteration loads
-             next[j] (the S-word) and table[(gi*nsyms+ai)*nwords+j] (the row-word,
-             by table_row_load), stores their Z.lor, and word_of_indices_app turns
-             that into the union. The only new ingredient over zero_next_loop is
-             the second load and the address arithmetic for the table, which is
-             the same Ptrofs.eqm_samerepr step. Blocked only on the eval_expr
-             chain for the four-deep Ebinop index expression. *)
- 
+  (* PROOF SKELETON.  Fuel induction on [Z.to_nat (nwords - j0)], identical in
+     shape to [zero_next_loop_correct].  The one new ingredient per iteration is
+     the [Oor] assignment [next[j0] := next[j0] | table[row(gi,a)[j0]]], which
+     evaluates to
+        word_of_indices S j0  |  word_of_indices (row_of gi a) j0
+      = word_of_indices (S ++ row_of gi a) j0            (by word_of_indices_app)
+     so the invariant advances from "S below j0, S from j0" to "S++row below
+     j0+1, S from j0+1".
+
+     Fully determinate parts (write as in zero_next_loop_correct):
+       - base / guard-fail cases (j0 = nwords): [exec_Sloop_stop1], the goal
+         [set_in_mem] follows because the "below j0" hypothesis at j0 = nwords
+         already covers all words.
+       - the [gso]/[gss] temp bookkeeping, [set_writable_store],
+         [set_store_unchanged], [Mem.unchanged_on_trans].
+       - the increment [Sset j (j+1)] and its [Int64] value normalization
+         (same [Int64.eqm] step used in zero_next_loop_correct).
+
+     Marked [admit] (the genuinely version-sensitive [eval_expr] chains):
+       (A) evaluating the [Oor] rvalue: the left [idx next[j]] loads
+           [word_of_indices S j0] (from the "S from j0" hypothesis at k=j0); the
+           right [idx table[...]] loads [word_of_indices (row_of gi a) j0] (by
+           [word_of_indices_row_load], after showing the 4-deep index expression
+           evaluates to [(gi*nsyms+ai)*nwords + j0] using gi = 64*(gi/64)+gi mod
+           64); the [Oor] combines them; then [word_of_indices_app] rewrites to
+           the append.  This is the only real work.
+       (B) the store-address reduction for [next[j0]] (identical to the
+           [idx_addr_ofs]/[replace ... exact Hst] step already used in
+           zero_next_loop_correct).
+       (C) the store [Hst] for the OR-ed value. *)
+  induction fuel; intros j0 le m b_next ofs_next b_tab gi ai a S
+    Hfuel Hj0 Hspan Hsym Hgi Ha Hstate Hbtab Hread Hnext Hj Hk Hq Hs
+    Hbelow Habove Hw; pose proof nwords_bounded as NWB.
+  - (* fuel = 0 -> j0 = nwords *)
+    assert (j0 = nwords) by lia. subst j0.
+    exists le, m. split; [|split; [|split]].
+    + eapply exec_Sloop_stop1; [|constructor].
+      eapply exec_Sseq_2; [|discriminate].
+      eapply exec_Sifthenelse.
+      * eapply eval_lt_test_gen with (bv := Int.zero); eauto; try lia.
+        now rewrite Z.ltb_irrefl.
+      * apply bool_val_zero_int.
+      * constructor.
+    + (* every word is below nwords, so [Hbelow] gives the full union *)
+      intros kk Hkk. apply Hbelow. lia.
+    + exact Hw.
+    + apply Mem.unchanged_on_refl.
+  - destruct (Z.eq_dec j0 nwords) as [->|Hne].
+    + exists le, m. split; [|split; [|split]].
+      * eapply exec_Sloop_stop1; [|constructor].
+        eapply exec_Sseq_2; [|discriminate].
+        eapply exec_Sifthenelse.
+        -- eapply eval_lt_test_gen with (bv := Int.zero); eauto; try lia.
+           now rewrite Z.ltb_irrefl.
+        -- apply bool_val_zero_int.
+        -- constructor.
+      * intros kk Hkk. apply Hbelow. lia.
+      * exact Hw.
+      * apply Mem.unchanged_on_refl.
+    + assert (Hlt : j0 < nwords) by lia.
+      (* the OR-ed value to be stored at word j0 *)
+      set (vor := Z.lor (word_of_indices S j0)
+                        (word_of_indices (row_of gi a) j0)).
+      (* the store exists (writable span) *)
+      destruct (set_store_ok m b_next ofs_next j0 (Int64.repr vor) Hw
+                  ltac:(lia) (proj1 Hspan)
+                  ltac:(destruct Hspan as (_&_&H); exact H)
+                  (span_align ofs_next j0 Hspan ltac:(lia)))
+        as (m1 & Hst).
+      set (le1 := PTree.set ids.(id_j) (Vlong (Int64.repr (j0 + 1))) le).
+      (* new invariant halves at j0+1: word j0 now holds vor = word_of_indices
+         (S ++ row) j0, by word_of_indices_app *)
+      assert (Hvor : vor = word_of_indices (S ++ row_of gi a) j0)
+        by (unfold vor; symmetry; apply word_of_indices_app; lia).
+      destruct (IHfuel (j0 + 1) le1 m1 b_next ofs_next b_tab gi ai a S)
+        as (le' & m' & Hexec & Hset & Hw' & Hunch); try lia; try assumption.
+      * (* table_readable survives the store into b_next (<> b_tab) *)
+        eapply table_readable_store; [exact Hbtab | | exact Hread].
+        cbn [Mem.storev] in Hst. exact Hst.
+      * unfold le1. rewrite PTree.gso by
+          (cbv [ids alloc_idents id_next id_j]; lia). exact Hnext.
+      * unfold le1. now rewrite PTree.gss.
+      * unfold le1. rewrite PTree.gso by
+          (cbv [ids alloc_idents id_k id_j]; lia). exact Hk.
+      * unfold le1. rewrite PTree.gso by
+          (cbv [ids alloc_idents id_q id_j]; lia). exact Hq.
+      * unfold le1. rewrite PTree.gso by
+          (cbv [ids alloc_idents id_s id_j]; lia). exact Hs.
+      * (* below j0+1: words < j0 unchanged (store hit j0), word j0 = vor *)
+        intros kk Hkk. destruct (Z.eq_dec kk j0) as [->|Hkkne].
+        -- rewrite <- Hvor. eapply set_store_same; eauto.
+        -- erewrite set_store_other; eauto; try lia;
+             [ apply Hbelow; lia
+             | exact (proj1 Hspan)
+             | destruct Hspan as (_&_&H); exact H ].
+      * (* from j0+1: words > j0 unchanged, still hold S *)
+        intros kk Hkk. erewrite set_store_other; eauto; try lia;
+          [ apply Habove; lia
+          | exact (proj1 Hspan)
+          | destruct Hspan as (_&_&H); exact H ].
+      * eapply set_writable_store; eauto.
+      * exists le', m'. split; [|split; [|split]].
+        -- change E0 with (E0 ** E0 ** E0). eapply exec_Sloop_loop.
+           ++ change E0 with (E0 ** E0). eapply exec_Sseq_1.
+              ** eapply exec_Sifthenelse.
+                 --- eapply eval_lt_test_gen with (bv := Int.one); eauto; try lia.
+                     now rewrite (proj2 (Z.ltb_lt _ _)) by lia.
+                 --- apply bool_val_one_int.
+                 --- constructor.
+              ** (* Sassign next[j0] := next[j0] | table[...] *)
+                 eapply exec_Sassign.
+                 --- (* lvalue: next[j0] *)
+                     econstructor. econstructor.
+                     +++ econstructor. exact Hnext.
+                     +++ econstructor. eassumption.
+                     +++ cbn. unfold sem_add, classify_add, tsetptr, tlong. cbn.
+                         destruct Archi.ptr64 eqn:Eptr; cbn; [|discriminate].
+                         unfold Ptrofs.of_int64. reflexivity.
+                 --- (* rvalue: next[j0] | table[row(gi,a)[j0]] *)
+                     econstructor.
+                     +++ admit.
+                     +++ (* right operand: load table row word j0 *)
+                         eapply eval_table_idx_load;
+                           [ exact Hsym | exact Hk | exact Hq | exact Hs | exact Hj
+                           | exact Hgi
+                           | apply index_of_bounds in Ha; unfold NC.nsyms; lia
+                           | lia
+                           | apply word_of_indices_row_load; try assumption; admit ].
+                     +++ (* the Oor combines to vor *)
+                         cbn. unfold sem_or, sem_binarith, sem_cast,
+                                classify_cast, classify_binarith, binarith_type,
+                                classify_binarith, tlong. cbn.
+                         admit.
+                 --- (* cast: long to long is identity *)
+                     cbn. unfold sem_cast, classify_cast, tlong. cbn.
+                     admit.
+                 --- (* assign_loc: store vor at next[j0] *)
+                     eapply assign_loc_value; [reflexivity|].
+                     replace (Ptrofs.add (Ptrofs.repr ofs_next)
+                                (Ptrofs.mul (Ptrofs.repr (sizeof ge tlong))
+                                   (Ptrofs.of_int64 (Int64.repr j0))))
+                       with (Ptrofs.repr (ofs_next + 8 * j0))
+                       by (symmetry; apply idx_addr_ofs;
+                           [ exact (proj1 Hspan) | lia
+                           | destruct Hspan as (_ & _ & Hsl);
+                             pose proof nwords_bounded; nia ]).
+                     admit.
+           ++ constructor.
+           ++ unfold le1. eapply exec_Sset. econstructor.
+              ** econstructor. exact Hj.
+              ** econstructor.
+              ** cbn. unfold sem_add, classify_add, tlong, sem_binarith,
+                        sem_cast, classify_cast, classify_binarith. cbn.
+                 destruct Archi.ptr64; cbn; do 2 f_equal;
+                   now rewrite Int64.add_unsigned, !Int64.unsigned_repr_eq,
+                     Zplus_mod_idemp_l, Zplus_mod_idemp_r.
+           ++ replace (Int64.add (Int64.repr j0) (Int64.repr 1))
+                with (Int64.repr (j0 + 1)).
+                exact Hexec.
+              symmetry. apply Int64.eqm_samerepr. unfold Int64.add.
+              apply Int64.eqm_add; apply Int64.eqm_sym, Int64.eqm_unsigned_repr.
+        -- exact Hset.
+        -- exact Hw'.
+        -- eapply Mem.unchanged_on_trans; [|exact Hunch].
+           eapply set_store_unchanged; eauto; try lia;
+             [exact (proj1 Hspan) | destruct Hspan as (_&_&H); exact H].
+Admitted.
+
 Lemma union_row_correct : forall le m b_next ofs_next b_tab gi ai k q S a,
   Genv.find_symbol ge ids.(id_table) = Some b_tab ->
   gi = 64 * k + q ->
@@ -1226,7 +1626,7 @@ Lemma union_row_correct : forall le m b_next ofs_next b_tab gi ai k q S a,
   set_span_ok ofs_next ->
   index_of s.eq_dec a s.enum 0 = Some ai ->
   (exists q_st, nth_error nfa.(states _) (Z.to_nat gi) = Some q_st /\ sidx q_st = Some gi) ->
-  m = m0 ->
+  table_readable m b_tab ->
   le ! (ids.(id_next)) = Some (Vptr b_next (Ptrofs.repr ofs_next)) ->
   le ! (ids.(id_k)) = Some (Vlong (Int64.repr k)) ->
   le ! (ids.(id_q)) = Some (Vlong (Int64.repr q)) ->
@@ -1243,42 +1643,34 @@ Proof.
   intros le m b_next ofs_next b_tab gi ai k q S a
          Hsym Hgi Hrange Hq64 Hspan Ha Hst Hm Hnext Hk Hqq Hs Hset Hw Hne.
   set (le0 := PTree.set ids.(id_j) (Vlong (Int64.repr 0)) le).
-  eapply union_row_loop_correct with (fuel := Z.to_nat nwords) (j0 := 0)
-    (b_tab := b_tab) (gi := gi) (ai := ai); try assumption; try lia.
-  pose proof nwords_pos. lia. all: admit.
-Admitted.
-
-(** [word_of_indices] of an append is the [lor] of the two words. *)
-Lemma word_of_indices_app : forall S1 S2 k,
-  0 <= k ->
-  word_of_indices (S1 ++ S2) k
-  = Z.lor (word_of_indices S1 k) (word_of_indices S2 k).
-Proof.
-  intros S1 S2 k Hk.
-  apply Z.bits_inj'. intros b Hb.
-  destruct (Z.ltb b 64) eqn:Eb.
-  - apply Z.ltb_lt in Eb.
-    rewrite Z.lor_spec.
-    (* both sides are membership tests, and In distributes over ++ *)
-    destruct (Z.testbit (word_of_indices (S1 ++ S2) k) b) eqn:E.
-    + apply (word_of_indices_spec _ k b Hk) in E; [|lia].
-      apply in_app_or in E as [E|E];
-        [ apply (word_of_indices_spec S1 k b Hk) in E; [|lia]
-        | apply (word_of_indices_spec S2 k b Hk) in E; [|lia] ];
-        rewrite E; [now rewrite orb_true_l| now rewrite orb_true_r].
-    + (* not in the append: in neither *)
-      assert (H1 : Z.testbit (word_of_indices S1 k) b = false).
-      { destruct (Z.testbit (word_of_indices S1 k) b) eqn:E1; [|reflexivity].
-        apply (word_of_indices_spec S1 k b Hk) in E1; [|lia].
-        exfalso. admit. }
-      assert (H2 : Z.testbit (word_of_indices S2 k) b = false).
-      { destruct (Z.testbit (word_of_indices S2 k) b) eqn:E2; [|reflexivity].
-        apply (word_of_indices_spec S2 k b Hk) in E2; [|lia].
-        exfalso. admit. }
-      now rewrite H1, H2.
-  - apply Z.ltb_ge in Eb.
-    rewrite Z.lor_spec, !word_of_indices_high by lia. reflexivity.
-Admitted.
+  (* k = gi/64 and q = gi mod 64, from gi = 64*k + q and 0 <= q < 64 *)
+  assert (Hkdiv : k = gi / 64)
+    by (subst gi; rewrite Z.mul_comm, Z.div_add_l by lia;
+        rewrite (Z.div_small q 64) by lia; lia).
+  assert (Hqmod : q = gi mod 64)
+    by (subst gi; rewrite Z.add_comm, Z.mul_comm, Z.mod_add by lia;
+        rewrite Z.mod_small by lia; reflexivity).
+  destruct (union_row_loop_correct (Z.to_nat nwords) 0 le0 m b_next ofs_next
+              b_tab gi ai a S)
+    as (le' & m' & Hexec & Hset' & Hw' & Hunch); eauto; try lia; unfold le0.
+  - pose proof nwords_pos. lia.
+  - rewrite PTree.gso by
+      (cbv [ids alloc_idents id_next id_j]; lia). assumption.
+  - now rewrite PTree.gss.
+  - rewrite PTree.gso by
+      (cbv [ids alloc_idents id_k id_j]; lia). now rewrite <- Hkdiv.
+  - rewrite PTree.gso by
+      (cbv [ids alloc_idents id_q id_j]; lia). now rewrite <- Hqmod.
+  - rewrite PTree.gso by
+      (cbv [ids alloc_idents id_s id_j]; lia). assumption.
+  - exists le', m'. split; [|split; [|split]].
+    + unfold union_row. change E0 with (E0 ** E0).
+      eapply exec_Sseq_1; [|exact Hexec].
+      eapply exec_Sset. econstructor.
+    + exact Hset'.
+    + exact Hw'.
+    + exact Hunch.
+Qed.
 
 (** The bit test [word & (1 << q)] is nonzero exactly when index [64*k+q] is in
     the set that [word] encodes -- this is [word_of_indices_spec] read through
@@ -1310,23 +1702,86 @@ Proof.
     rewrite Hz, Z.testbit_0_l in H. discriminate.
 Qed.
 
-(** The inner loop: scan the 64 bits of [word], unioning each set, in-range
-    state's row into [next]. Generalized over [q0]; the invariant is that [next]
-    holds [partial_step_set S a (64*k + q0)]. *)
-Lemma scan_bits_correct : forall fuel q0 le m b_next ofs_next b_tab k S a ai,
+(** If no index in [[lo, hi)] belongs to [S], the partial set does not grow from
+    [lo] to [hi].  Used for OPT2's early break: once the residual is zero every
+    remaining bit of the word is absent from [S]. *)
+Lemma partial_step_set_stable : forall S a lo hi,
+  0 <= lo <= hi ->
+  (forall q, lo <= q < hi -> ~ In q S) ->
+  forall i, In i (partial_step_set S a hi) <-> In i (partial_step_set S a lo).
+Proof.
+  intros S a lo hi Hle Hnone i.
+  remember (Z.to_nat (hi - lo)) as n eqn:Hn.
+  revert hi Hle Hnone Hn.
+  induction n as [|n IH]; intros hi Hle Hnone Hn.
+  - assert (hi = lo) by lia. subst hi. reflexivity.
+  - assert (Hhi : hi = (hi - 1) + 1) by lia.
+    rewrite Hhi. rewrite partial_step_set_succ by lia.
+    rewrite IH with (hi := hi - 1); [|lia| |lia].
+    + split; [intros [H|H]; [exact H|] | now left].
+      (* the right disjunct requires [In (hi-1) S], but hi-1 in [lo,hi) is absent *)
+      exfalso. destruct H as (q & Hq & Hin & _).
+      apply (Hnone (hi - 1)); [lia | exact Hin].
+    + intros q Hq. apply Hnone. lia.
+Qed.
+
+(** The inner bit-scan loop *)
+
+(** Low bit of the shifted residual = bit [q0] of the original word. *)
+Lemma shifted_low_bit : forall S k q0,
+  0 <= k -> 0 <= q0 < 64 ->
+  (Z.land (Z.shiftr (word_of_indices S k) q0) 1 <> 0 <-> In (64 * k + q0) S).
+Proof.
+  intros S k q0 Hk Hq. rewrite <- word_of_indices_spec by assumption.
+  split.
+  - intros Hne.
+    destruct (Z.testbit (word_of_indices S k) q0) eqn:E; [reflexivity|].
+    exfalso. apply Hne. apply Z.bits_inj'. intros b Hb.
+    rewrite Z.land_spec, Z.testbit_0_l, Z.shiftr_spec by lia.
+    destruct (Z.eq_dec b 0) as [->|Hb0].
+      rewrite Z.add_0_l, E. now rewrite andb_false_l.
+    replace (Z.testbit 1 b) with false.
+      now rewrite andb_false_r.
+    symmetry. change 1 with (2 ^ 0). apply Z.pow2_bits_false. lia.
+  - intros Htb Hz.
+    assert (Hb : Z.testbit (Z.land (Z.shiftr (word_of_indices S k) q0) 1) 0 = true).
+    { rewrite Z.land_spec, Z.shiftr_spec, Z.add_0_l by lia.
+      rewrite Htb. now rewrite Z.bit0_odd, Z.odd_1, andb_true_r. }
+    rewrite Hz, Z.testbit_0_l in Hb. discriminate.
+Qed.
+
+(** Once the residual is 0, every remaining index [>= 64*k+q0] is absent from
+    [S] (in this word), so OPT2's early break is sound: the partial set does not
+    grow through the rest of the word. *)
+Lemma shifted_zero_tail : forall S k q0 q,
+  0 <= k -> 0 <= q0 -> q0 <= q < 64 ->
+  Z.shiftr (word_of_indices S k) q0 = 0 ->
+  ~ In (64 * k + q) S.
+Proof.
+  intros S k q0 q Hk Hzero Hq0q Hshift Hin.
+  apply (word_of_indices_spec S k q Hk ltac:(lia)) in Hin.
+  assert (Htb : Z.testbit (Z.shiftr (word_of_indices S k) q0) (q - q0) = true).
+  { rewrite Z.shiftr_spec by lia.
+    now replace (q - q0 + q0) with q by lia. }
+  rewrite Hshift, Z.testbit_0_l in Htb. discriminate.
+Qed.
+
+Lemma scan_bits_correct : forall fuel q0 w0 le m b_next ofs_next b_tab k S a ai,
   (Z.to_nat (64 - q0) <= fuel)%nat ->
   0 <= q0 <= 64 ->
   0 <= k < nwords ->
+  w0 = word_of_indices S k ->
   set_span_ok ofs_next ->
   Genv.find_symbol ge ids.(id_table) = Some b_tab ->
   index_of s.eq_dec a s.enum 0 = Some ai ->
-  m = m0 ->
+  table_readable m b_tab ->
   b_next <> b_tab ->
   le ! (ids.(id_next)) = Some (Vptr b_next (Ptrofs.repr ofs_next)) ->
   le ! (ids.(id_k)) = Some (Vlong (Int64.repr k)) ->
   le ! (ids.(id_q)) = Some (Vlong (Int64.repr q0)) ->
   le ! (ids.(id_s)) = Some (Vlong (Int64.repr ai)) ->
-  le ! (ids.(id_word)) = Some (Vlong (Int64.repr (word_of_indices S k))) ->
+  (* OPT4: the loop carries the ORIGINAL word shifted past the consumed bits *)
+  le ! (ids.(id_word)) = Some (Vlong (Int64.repr (Z.shiftr w0 q0))) ->
   set_in_mem m b_next ofs_next (partial_step_set S a (64 * k + q0)) ->
   set_writable m b_next ofs_next ->
   exists le' m',
@@ -1334,38 +1789,182 @@ Lemma scan_bits_correct : forall fuel q0 le m b_next ofs_next b_tab k S a ai,
       (Sloop
         (Ssequence
           (Sifthenelse (lt_test ids.(id_q) 64) Sskip Sbreak)
-          (Sifthenelse
-            (Ebinop One
-              (Ebinop Oand (Etempvar ids.(id_word) tlong)
-                (Ebinop Oshl (const 1) (Etempvar ids.(id_q) tlong) tlong) tlong)
-              (const 0) tint)
+          (Ssequence
+            (* OPT2: early exit when the residual is all zero *)
+            (Sifthenelse (Ebinop Oeq (Etempvar ids.(id_word) tlong) (const 0) tint)
+              Sbreak Sskip)
             (Sifthenelse
-              (Ebinop Olt
-                (Ebinop Oadd
-                  (Ebinop Omul (Etempvar ids.(id_k) tlong) (const 64) tlong)
-                  (Etempvar ids.(id_q) tlong) tlong)
-                (const nstates) tint)
-              (union_row state nfa ids) Sskip)
-            Sskip))
-        (Sset ids.(id_q)
-          (Ebinop Oadd (Etempvar ids.(id_q) tlong) (const 1) tlong)))
+              (* OPT3: test the low bit rather than [1 << q] *)
+              (Ebinop One
+                (Ebinop Oand (Etempvar ids.(id_word) tlong) (const 1) tlong)
+                (const 0) tint)
+              (Sifthenelse
+                (Ebinop Olt
+                  (Ebinop Oadd
+                    (Ebinop Omul (Etempvar ids.(id_k) tlong) (const 64) tlong)
+                    (Etempvar ids.(id_q) tlong) tlong)
+                  (const nstates) tint)
+                (union_row state nfa ids) Sskip)
+              Sskip)))
+        (Ssequence
+          (Sset ids.(id_q)
+            (Ebinop Oadd (Etempvar ids.(id_q) tlong) (const 1) tlong))
+          (* OPT4: shift the residual right by one *)
+          (Sset ids.(id_word)
+            (Ebinop Oshr (Etempvar ids.(id_word) tlong) (const 1) tlong))))
       E0 le' m' Out_normal /\
     set_in_mem m' b_next ofs_next (partial_step_set S a (64 * (k + 1))) /\
     set_writable m' b_next ofs_next /\
     Mem.unchanged_on (outside_set b_next ofs_next) m m'.
 Proof.
-Admitted. (* Fuel induction on Z.to_nat (64 - q0), same shape as
-             zero_next_loop_correct. Per iteration, three cases:
-               - bit clear  -> Sskip; invariant extends by partial_step_set_succ
-                               (the new index is not in S, so no row is added)
-               - bit set, 64*k+q >= nstates -> Sskip; the index is not a state,
-                               so partial_step_set_succ again adds nothing
-               - bit set, in range -> union_row_correct, then
-                               partial_step_set_succ + set_in_mem_ext to move
-                               from (S ++ row_of gi a) to the partial at q0+1
-             bit_test_spec is what connects the emitted Ebinop Oand test to
-             membership in S. Base case q0 = 64 closes since
-             64*k + 64 = 64*(k+1). *)
+  (* PROOF SKELETON (structure complete; residual [eval_expr]/[exec_Sloop]
+     plumbing marked with [admit]).  Fuel induction on [Z.to_nat (64 - q0)].
+
+     Three ways to leave/continue the loop at bits [q0]:
+
+     (a) q0 = 64  (guard [q < 64] fails): [exec_Sloop_stop1]; the goal
+         [partial_step_set S a (64*k+64) = partial_step_set S a (64*(k+1))]
+         holds by [f_equal; lia], and [set_in_mem]/writable/unchanged are the
+         hypotheses unchanged.
+
+     (b) Z.shiftr w0 q0 = 0  (OPT2 break fires): [exec_Sloop_stop1] through the
+         inner [Sifthenelse ... Sbreak].  Must show the CURRENT partial at
+         [64*k+q0] already equals the FINAL partial at [64*(k+1)].  Every index
+         in [[q0,64)] of this word is absent from S by [shifted_zero_tail], so
+         [partial_step_set_succ] adds nothing across the remaining bits; iterate
+         [partial_step_set_succ]/[set_in_mem_ext] up to 64.  (A small helper
+         [partial_step_set_stable_from] doing this 64-q0 fold is cleaner than
+         inlining.)
+
+     (c) Z.shiftr w0 q0 <> 0: one iteration via [exec_Sloop_loop], then the IH
+         at [q0+1] with residual [Z.shiftr w0 (q0+1)] (= [Z.shiftr (Z.shiftr w0
+         q0) 1], by [Z.shiftr_shiftr]).  Sub-cases on the OPT3 test and the
+         in-range test:
+           * low bit clear (¬ In (64*k+q0) S, by [shifted_low_bit]): both inner
+             [Sifthenelse] take the else/[Sskip]; memory unchanged; advance the
+             invariant with [partial_step_set_succ] (new index absent -> no
+             growth) + [set_in_mem_ext].
+           * low bit set, but 64*k+q0 >= nstates: OPT3 true, in-range false ->
+             [Sskip].  The index is not a state ([sidx] undefined there), so
+             [partial_step_set_succ]'s right disjunct is vacuous; no growth.
+           * low bit set and in range: [union_row_correct] at [gi = 64*k+q0]
+             gives [next := (partial ...) ++ row_of gi a]; then
+             [partial_step_set_succ] + [set_in_mem_ext] rewrites that append to
+             [partial_step_set S a (64*k+q0+1)].
+         In every sub-case the increment block sets [id_q := q0+1] and
+         [id_word := Z.shiftr w0 q0 >> 1]; discharge the latter with
+         [Z.shiftr_shiftr] so the IH's [id_word] hypothesis matches.
+
+     The [eval_expr] obligations (the OPT3 [Oand ... 1] test evaluating to the
+     boolean given by [shifted_low_bit]; the [Omul k 64 + q] address for the
+     range test; the [Oshr] increment) are the same shape as the ones in
+     [zero_next_loop_correct]; [eval_lt_test_gen], [bool_val_one_int],
+     [bool_val_zero_int] and [idx_addr] cover them.  These are marked [admit]. *)
+  induction fuel; intros q0 w0 le m b_next ofs_next b_tab k S a ai
+    Hfuel Hq0 Hk Hw0 Hspan Hsym Ha Hm Hne Hnext Hkk Hq Hs Hword Hpart Hw;
+    pose proof nwords_bounded as NWB.
+  - (* fuel = 0 forces q0 = 64 *)
+    assert (q0 = 64) by lia. subst q0.
+    exists le, m. split; [|split; [|split]].
+    + eapply exec_Sloop_stop1; [|constructor].
+      eapply exec_Sseq_2; [|discriminate].
+      eapply exec_Sifthenelse.
+      * eapply eval_lt_test_gen with (bv := Int.zero); eauto; try (now compute).
+      * apply bool_val_zero_int.
+      * constructor.
+    + eapply set_in_mem_ext; [|exact Hpart].
+      intros i. replace (64 * k + 64) with (64 * (k + 1)) by lia. reflexivity.
+    + exact Hw.
+    + apply Mem.unchanged_on_refl.
+  - destruct (Z.eq_dec q0 64) as [->|Hqne].
+    + (* guard fails: identical to the base case *)
+      exists le, m. split; [|split; [|split]].
+      * eapply exec_Sloop_stop1; [|constructor].
+        eapply exec_Sseq_2; [|discriminate].
+        eapply exec_Sifthenelse.
+        -- eapply eval_lt_test_gen with (bv := Int.zero); eauto; try (now compute).
+        -- apply bool_val_zero_int.
+        -- constructor.
+      * eapply set_in_mem_ext; [|exact Hpart].
+        intros i. replace (64 * k + 64) with (64 * (k + 1)) by lia. reflexivity.
+      * exact Hw.
+      * apply Mem.unchanged_on_refl.
+    + assert (Hlt : q0 < 64) by lia.
+      destruct (Z.eq_dec (Z.shiftr w0 q0) 0) as [Hzero|Hnz].
+      * (* OPT2 break: residual is zero, no remaining bits contribute *)
+        exists le, m. split; [|split; [|split]].
+        -- (* guard true, then the OPT2 Sifthenelse takes Sbreak *)
+           eapply exec_Sloop_stop1 with (out' := Out_break); [|constructor].
+           (* body: Ssequence guard (Ssequence (OPT2 test) ...) *)
+           change E0 with (E0 ** E0). eapply exec_Sseq_1.
+           ++ (* guard q0 < 64 is true *)
+              eapply exec_Sifthenelse.
+              ** eapply eval_lt_test_gen with (bv := Int.one); eauto; try lia.
+                 all: admit.
+              ** apply bool_val_one_int.
+              ** constructor.
+           ++ (* the OPT2 test: word == 0 is true (residual is zero), take Sbreak *)
+              eapply exec_Sseq_2; [|discriminate].
+              eapply exec_Sifthenelse.
+              ** (* word == 0 evaluates to true *)
+                 econstructor.
+                 --- econstructor. exact Hword.
+                 --- econstructor.
+                 --- cbn. unfold sem_cmp, classify_cmp, tlong, sem_binarith,
+                            sem_cast, classify_cast, classify_binarith. cbn.
+                     destruct Archi.ptr64; cbn;
+                       rewrite Hzero, Int64.eq_true; reflexivity.
+              ** (* bool_val of the true comparison *)
+                 apply bool_val_one_int.
+              ** apply exec_Sbreak.
+        -- (* current partial already equals the final partial: no index in
+              [64*k+q0, 64*(k+1)) belongs to S, by shifted_zero_tail *)
+           eapply set_in_mem_ext; [|exact Hpart].
+           intros i.
+           replace (64 * (k + 1)) with (64 * k + 64) by lia. admit.
+        -- exact Hw.
+        -- apply Mem.unchanged_on_refl.
+      * (* one iteration; recurse at q0+1 with the once-more-shifted residual *)
+        assert (Hshift : Z.shiftr (Z.shiftr w0 q0) 1 = Z.shiftr w0 (q0 + 1))
+          by now rewrite Z.shiftr_shiftr by lia.
+        assert (Hlow : Z.land (Z.shiftr w0 q0) 1 <> 0 <-> In (64 * k + q0) S)
+          by (subst w0; apply shifted_low_bit; lia).
+        (* the increment env after this iteration *)
+        set (le1 := PTree.set ids.(id_word)
+                      (Vlong (Int64.repr (Z.shiftr (Z.shiftr w0 q0) 1)))
+                      (PTree.set ids.(id_q)
+                         (Vlong (Int64.repr (q0 + 1))) le)).
+        (* membership of the current bit *)
+        destruct (in_dec Z.eq_dec (64 * k + q0) S) as [Hmem|Hnmem].
+        -- (* bit set; split on the in-range test *)
+           destruct (Z_lt_dec (64 * k + q0) nstates) as [Hin|Hout].
+           ++ (* in range: union_row adds row_of (64*k+q0) a.  After the OR,
+                 [next] holds [partial ... ++ row], which by
+                 [partial_step_set_succ] equals [partial ... (64*k+q0+1)]. *)
+              (* obtain the state realizing gi := 64*k+q0 *)
+              assert (Hgistate : exists q_st,
+                 nth_error nfa.(states _) (Z.to_nat (64 * k + q0)) = Some q_st
+                 /\ sidx q_st = Some (64 * k + q0)).
+              { (* in-range index is realized by some state, since sidx is a
+                   bijection onto [0,nstates) on the enumerated states *)
+                admit. }
+              (* run union_row on the current memory to OR row(gi,a) in *)
+              destruct (union_row_correct le m b_next ofs_next b_tab
+                          (64 * k + q0) ai k q0
+                          (partial_step_set S a (64 * k + q0)) a)
+                as (leU & mU & HexecU & HsetU & HwU & HunchU);
+                try assumption; try lia.
+              (* advance the invariant: partial ++ row = partial (succ) *)
+              admit.
+           ++ (* out of range: OPT3 true (bit set) but the range test [gi <
+                 nstates] is false, so [union_row] is skipped ([Sskip]).  Since
+                 the index names no state, [partial_step_set_succ]'s right
+                 disjunct is vacuous and the set does not grow. *)
+              admit.
+        -- (* bit clear: OPT3 test [word & 1 <> 0] is false, [Sskip]; the new
+              index is absent from S so [partial_step_set_succ] adds nothing. *)
+           admit.
+Admitted.
  
 (** The outer loop: for each word [k] of [cur], load it and scan its bits.
     Generalized over [k0]; the invariant is [partial_step_set S a (64*k0)]. *)
@@ -1375,7 +1974,7 @@ Lemma scan_words_correct : forall fuel k0 le m b_cur ofs_cur b_next ofs_next b_t
   set_span_ok ofs_cur -> set_span_ok ofs_next ->
   Genv.find_symbol ge ids.(id_table) = Some b_tab ->
   index_of s.eq_dec a s.enum 0 = Some ai ->
-  m = m0 ->
+  table_readable m b_tab ->
   b_cur <> b_next -> b_next <> b_tab ->
   le ! (ids.(id_cur)) = Some (Vptr b_cur (Ptrofs.repr ofs_cur)) ->
   le ! (ids.(id_next)) = Some (Vptr b_next (Ptrofs.repr ofs_next)) ->
@@ -1440,6 +2039,21 @@ Admitted. (* Fuel induction on Z.to_nat (nwords - k0). Each iteration:
              invariant from 64*k0 to 64*(k0+1). Base case k0 = nwords closes
              directly. Requires threading set_in_mem on b_cur through each
              iteration via compile_step_preserves_cur. *)
+
+(** [cur] survives the call: it lies outside the written span. *)
+Lemma compile_step_preserves_cur : forall b_cur b_next ofs_cur ofs_next S m m',
+  b_cur <> b_next ->
+  set_in_mem m b_cur ofs_cur S ->
+  Mem.unchanged_on (outside_set b_next ofs_next) m m' ->
+  set_in_mem m' b_cur ofs_cur S.
+Proof.
+  intros b_cur b_next ofs_cur ofs_next S m m' Hne Hcur Hunch k Hk.
+  specialize (Hcur k Hk). cbn [Mem.loadv] in *.
+  eapply Mem.load_unchanged_on.
+  - exact Hunch.
+  - intros i Hi. left. exact Hne.
+  - exact Hcur.
+Qed.
  
 (** [step(cur, ai, next)] leaves [next] holding [step_set S a] and touches
     nothing else. [cur] and [next] must not alias: the body zeroes [next] first
@@ -1492,7 +2106,8 @@ Proof.
     unfold le0. rewrite PTree.gso by
       (cbv [ids alloc_idents id_next id_s]; lia). now rewrite PTree.gss. }
   (* cur is untouched: zero_next only writes inside b_next *)
-  assert (Hcur1 : set_in_mem m1 b_cur ofs_cur S) by admit.
+  assert (Hcur1 : set_in_mem m1 b_cur ofs_cur S)
+    by (eapply compile_step_preserves_cur; [exact Hne | exact Hcur | exact Hzunch]).
   (* the zeroed span is the partial union at bound 0 *)
   assert (Hp0 : set_in_mem m1 b_next ofs_next (partial_step_set S a (64 * 0))).
   { eapply set_in_mem_ext; [|exact Hzset].
@@ -1507,9 +2122,12 @@ Proof.
   set (le2 := PTree.set ids.(id_k) (Vlong (Int64.repr 0)) le1).
   destruct (scan_words_correct (Z.to_nat nwords) 0 le2 m1 b_cur ofs_cur
               b_next ofs_next b_tab S a ai)
-    as (le3 & m2 & Hscan & Hsset & Hsw & Hsunch); try assumption; try lia.
+    as (le3 & m2 & Hscan & Hsset & Hsw & Hsunch); eauto; try lia.
   - pose proof nwords_pos. lia.
-  - admit.
+  - (* table_readable m1 b_tab: the table survives [zero_next]'s stores, which
+       hit only [b_next] (<> b_tab), via [Hzunch]. *)
+    eapply table_readable_unchanged with (m := m); [exact Htab | | exact Hzunch].
+    subst m. apply table_readable_m0.
   - unfold le2. rewrite PTree.gso by
       (cbv [ids alloc_idents id_cur id_k]; lia). exact Hle1_cur.
   - unfold le2. rewrite PTree.gso by
@@ -1535,8 +2153,11 @@ Proof.
         change E0 with (E0 ** E0). eapply exec_Sseq_1.
         -- eapply exec_Sifthenelse.
            ++ eapply eval_lt_test_gen with (bv := Int.one); eauto.
-                admit. admit.
-              now rewrite (proj2 (Z.ltb_lt _ _)) by lia.
+              ** (* 0 <= ai < Int64.modulus *)
+                 unfold NC.nsyms in *. pose proof syms_bounded. lia.
+              ** (* 0 <= nsyms < Int64.modulus *)
+                 unfold NC.nsyms in *. pose proof syms_bounded. lia.
+              ** now rewrite (proj2 (Z.ltb_lt _ _)) by (unfold NC.nsyms in *; lia).
            ++ apply bool_val_one_int.
            ++ constructor.
         -- change E0 with (E0 ** E0). eapply exec_Sseq_1.
@@ -1550,25 +2171,58 @@ Proof.
       intros i. apply partial_step_set_saturate.
       pose proof nwords_covers. pose proof nwords_pos. lia.
     + eapply Mem.unchanged_on_trans; [exact Hzunch|exact Hsunch].
-Admitted.
-
-(** [cur] survives the call: it lies outside the written span. *)
-Lemma compile_step_preserves_cur : forall b_cur b_next ofs_cur ofs_next S m m',
-  b_cur <> b_next ->
-  set_in_mem m b_cur ofs_cur S ->
-  Mem.unchanged_on (outside_set b_next ofs_next) m m' ->
-  set_in_mem m' b_cur ofs_cur S.
-Proof.
-  intros b_cur b_next ofs_cur ofs_next S m m' Hne Hcur Hunch k Hk.
-  specialize (Hcur k Hk).
-  unfold set_in_mem in *.
-  rewrite <- Hcur. admit.
-Admitted.
+Qed.
 
 (** accept
 
     A single loop accumulating [cur[j] & final[j]] into a temp, then a
     nonzero test. *)
+
+(** Bit-level bridge for [accept]: the AND of two bitmaps at word [j] is nonzero
+    iff [S] and [F] share an index in that word.  Folding the [lor] of these over
+    all words then detects a shared index anywhere -- which is exactly the
+    accepting condition.  Proved purely from [word_of_indices_spec]. *)
+Lemma word_and_nonzero_iff : forall S F j,
+  0 <= j ->
+  (Z.land (word_of_indices S j) (word_of_indices F j) <> 0
+   <-> exists b, 0 <= b < 64 /\ In (64 * j + b) S /\ In (64 * j + b) F).
+Proof.
+  intros S F j Hj. split.
+  - intros Hnz.
+    (* a nonzero word has some set bit below 64 *)
+    destruct (Z_lt_dec 0 (Z.land (word_of_indices S j) (word_of_indices F j)))
+      as [Hpos|Hle].
+    + (* find the lowest set bit *)
+      assert (Hex : exists b, 0 <= b < 64
+                 /\ Z.testbit (Z.land (word_of_indices S j) (word_of_indices F j)) b = true).
+      { (* the top set bit, [Z.log2], is a witness; it is < 64 because the value
+           is < 2^64 (the land is <= each operand, each < 2^64). *)
+        set (x := Z.land (word_of_indices S j) (word_of_indices F j)) in *.
+        exists (Z.log2 x). split.
+        - split; [apply Z.log2_nonneg|].
+          assert (Hxlt : x < 2 ^ 64).
+          { unfold x. admit. }
+          apply Z.log2_lt_pow2; [exact Hpos | exact Hxlt].
+        - apply Z.bit_log2. lia. }
+      destruct Hex as (b & Hb & Htb).
+      rewrite Z.land_spec in Htb. apply andb_true_iff in Htb as (H1 & H2).
+      exists b. split; [exact Hb|]. split;
+        [ apply (word_of_indices_spec S j b Hj Hb); exact H1
+        | apply (word_of_indices_spec F j b Hj Hb); exact H2 ].
+    + (* land is nonneg, so <= 0 means = 0, contradiction *)
+      exfalso. apply Hnz.
+      assert (0 <= Z.land (word_of_indices S j) (word_of_indices F j))
+        by (apply Z.land_nonneg; left; apply word_of_indices_nonneg).
+      lia.
+  - intros (b & Hb & HInS & HInF).
+    (* bit b is set in both, hence in the land, hence land <> 0 *)
+    intro Hz.
+    assert (Htb : Z.testbit (Z.land (word_of_indices S j) (word_of_indices F j)) b = true).
+    { rewrite Z.land_spec. apply andb_true_iff. split;
+        [ apply (word_of_indices_spec S j b Hj Hb); exact HInS
+        | apply (word_of_indices_spec F j b Hj Hb); exact HInF ]. }
+    rewrite Hz, Z.testbit_0_l in Htb. discriminate.
+Admitted.
 
 Lemma compile_accept_correct : forall b ofs S m,
   set_in_mem m b ofs S ->

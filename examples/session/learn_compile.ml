@@ -6,15 +6,17 @@ open Teacher
 open Transmogrifier.Pipeline
 open Stdlib
 
-(** Input alphabet: one message opcode per symbol. *)
+(** Input alphabet *)
 module S = struct
-  type t = Hello | Auth | Request | Keepalive | Close
+  type t = Hello | Auth | AuthBad | Request | Keepalive | Close
 
   let string_of_t = function
     | Hello ->
         "h"
     | Auth ->
         "a"
+    | AuthBad ->
+        "b"
     | Request ->
         "r"
     | Keepalive ->
@@ -27,6 +29,8 @@ module S = struct
         Ok Hello
     | "a" ->
         Ok Auth
+    | "b" ->
+        Ok AuthBad
     | "r" ->
         Ok Request
     | "k" ->
@@ -38,7 +42,7 @@ module S = struct
 
   let eq_dec x y = x = y
 
-  let enum = [Hello; Auth; Request; Keepalive; Close]
+  let enum = [Hello; Auth; AuthBad; Request; Keepalive; Close]
 
   type str = t list
 
@@ -82,16 +86,20 @@ module O = struct
   let enum = [Deny; Wait; Proceed; Grant; Bye]
 end
 
-(** The wire encoding of a symbol for the legacy binary. AUTH is a
-    length-prefixed token field; we always present the real secret so the
-    authenticating edge is reachable. Other opcodes are a single byte. *)
 let secret = "s3cr3t-handshake-key"
+
+let wrong_token = String.make (String.length secret) 'z'
+
+let auth_frame tok =
+  "a" ^ String.make 1 (Char.chr (String.length tok)) ^ tok
 
 let bytes_of_sym : S.t -> string = function
   | S.Hello ->
       "h"
   | S.Auth ->
-      "a" ^ String.make 1 (Char.chr (String.length secret)) ^ secret
+      auth_frame secret
+  | S.AuthBad ->
+      auth_frame wrong_token
   | S.Request ->
       "r"
   | S.Keepalive ->
@@ -99,7 +107,6 @@ let bytes_of_sym : S.t -> string = function
   | S.Close ->
       "x"
 
-(** Path to the compiled legacy oracle, overridable via the environment. *)
 let legacy_bin =
   match Sys.getenv_opt "SESSION_LEGACY" with
   | Some p ->
@@ -180,21 +187,14 @@ module Teacher : MEALYTEACHER with module S = S and module O = O = struct
   module O = O
   module M = Mealy (S) (O)
 
-  (** Having already consumed [s], what disposition does reading [a] emit?
-      That is the last disposition the oracle prints for the word [s @ [a]]. *)
+  (** Having already consumed [s], what disposition does reading [a] emit? *)
   let output_lang (s : S.str) (a : S.t) : O.t =
     match List.rev (run_legacy (s @ [a])) with last :: _ -> last | [] -> O.Deny
 
   (** Breadth-first search for a word on which the hypothesis mispredicts.
 
-      Bounded by word length rather than by a count of words dequeued: a count
-      bound can stop part-way through a length and skip the word that
-      distinguishes the hypothesis from the target, which either yields a wrong
-      machine or leaves L* refining against a counterexample it never confirms.
-
       [max_len = 4] covers all 780 words of length <= 4 over the 5-symbol
-      alphabet, the same coverage as the accuracy table below. Each candidate is
-      an oracle query, but the cache makes repeats free. *)
+      alphabet, the same coverage as the accuracy table below. *)
   let equiv_query (m : 'a M.t) : S.str option =
     let max_len = 4 in
     let rec bfs (queue : S.str list) : S.str option =

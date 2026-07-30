@@ -6,8 +6,8 @@
 #include <string.h>
 #include "session.h"
 
-enum { SYM_HELLO = SYM_H, SYM_AUTH = SYM_A, SYM_REQUEST = SYM_R, SYM_KEEPALIVE = SYM_K,
-       SYM_CLOSE = SYM_X };
+enum { SYM_HELLO = SYM_H, SYM_AUTH = SYM_A, SYM_AUTHBAD = SYM_B,
+       SYM_REQUEST = SYM_R, SYM_KEEPALIVE = SYM_K, SYM_CLOSE = SYM_X };
 
 static const char *OUT_NAMES[] = { "DENY", "WAIT", "PROCEED", "GRANT", "BYE" };
 #define NOUT     ((int)(sizeof OUT_NAMES / sizeof OUT_NAMES[0]))
@@ -51,16 +51,8 @@ int main(void) {
                 /* AUTH: validate the token outside the FSM. */
                 int eof = 0;
                 int ok = check_token(&eof);
-                if (!ok) {
-                    /* bad token: do NOT take the AUTH edge; phase unchanged. */
-                    print_out(OUT_DENY);
-                    if (eof) {
-                        sym = SYM_CLOSE;
-                        break;
-                    }
-                    continue;
-                }
-                sym = SYM_AUTH;            /* valid token -> take the AUTH edge */
+                if (eof) { sym = SYM_CLOSE; break; }
+                sym = ok ? SYM_AUTH : SYM_AUTHBAD;
                 break;
             }
             case '\n': continue;

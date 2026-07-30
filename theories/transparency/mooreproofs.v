@@ -346,7 +346,7 @@ Proof.
   rewrite length_map, length_combine, length_map, length_seq. lia.
 Qed.
 
-Lemma table_entry_correct : forall q sym q_idx s_idx,
+Theorem table_entry_correct : forall q sym q_idx s_idx,
   sidx q = Some q_idx ->
   symidx sym = Some s_idx ->
   nth_error (table_init state moore state_eq_dec)
@@ -478,7 +478,7 @@ Proof.
   - unfold Ptrofs.max_unsigned. unfold nstates, nsyms in Hk. lia.
 Qed.
 
-Lemma atable_entry_correct : forall q q_idx,
+Theorem atable_entry_correct : forall q q_idx,
   sidx q = Some q_idx ->
   nth_error (atable_init state moore) (Z.to_nat q_idx)
   = Some (Init_int64 (Int64.repr (accept_entry state moore q))).
@@ -581,7 +581,7 @@ Proof. intros. unfold table_entry, sidx in *. now rewrite H. Qed.
 
 (** delta is correct on valid indices *)
 
-Lemma compile_delta_correct : forall q sym q_idx s_idx next_idx,
+Theorem compile_delta_correct : forall q sym q_idx s_idx next_idx,
   sidx q = Some q_idx ->
   symidx sym = Some s_idx ->
   sidx (moore.(transition _) q sym) = Some next_idx ->
@@ -749,7 +749,7 @@ Proof.
   now rewrite (Zmod_small (sz * i)) by nia.
 Qed.
 
-Lemma compile_accept_correct : forall q q_idx,
+Theorem compile_accept_correct : forall q q_idx,
   sidx q = Some q_idx ->
   eval_funcall function_entry2 ge m0
     (compile_accept state moore ids)
@@ -806,7 +806,7 @@ Qed.
 
 (** delta returns the sink on out-of-range indices *)
 
-Lemma compile_delta_sink : forall q_idx s_idx m,
+Theorem compile_delta_sink : forall q_idx s_idx m,
   0 <= q_idx < Int64.modulus ->
   0 <= s_idx < Int64.modulus ->
   q_idx >= MC.nstates state moore ->
@@ -877,7 +877,7 @@ Proof.
   now rewrite fold_left_app.
 Qed.
 
-Lemma delta_step_correct : forall w a q_idx a_idx,
+Theorem delta_step_correct : forall w a q_idx a_idx,
   sidx (Moore.run moore w) = Some q_idx ->
   symidx a = Some a_idx ->
   exists r_idx,
@@ -894,7 +894,7 @@ Proof.
   now rewrite <- run_snoc.
 Qed.
 
-Lemma q0_index_correct :
+Theorem q0_index_correct :
   sidx moore.(initial _) = Some (q0_index _ moore state_eq_dec).
 Proof.
   intros. unfold sidx, q0_index.
@@ -942,8 +942,6 @@ Proof.
   induction w; intros; destruct n; cbn in *; try discriminate;
     inversion H; inversion H0; subst; eauto.
 Qed.
-
-(* Pointer arithmetic *)
 
 Lemma eval_index_lvalue : forall e le m b ofs i,
   le ! (ids.(id_w)) = Some (Vptr b (Ptrofs.repr ofs)) ->
@@ -1142,7 +1140,7 @@ Proof.
     repeat (destruct H0 as [H0|H0]; subst; try contradiction); lia.
 Qed.
 
-Lemma compile_run_correct : forall w l b ofs,
+Theorem compile_run_correct : forall w l b ofs,
   sym_indices w l ->
   word_in_mem m0 b ofs l ->
   0 <= ofs ->
