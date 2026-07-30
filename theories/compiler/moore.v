@@ -17,21 +17,7 @@ Open Scope Z_scope.
                 unsigned int accept(unsigned int q); *)
 
 Module Type MooreType (s : Symbol) (O : Output).
-  Record t (state : Type) : Type := {
-        transition : state -> s.t -> state;
-        initial : state;
-        output : state -> O.t;
-        states : list state;
-        states_complete : forall w, In (fold_left transition w initial) states
-    }.
-
-    (** Run a Moore machine on a string and get the resulting state *)
-    Definition run {state : Type} (m : t state) (w : list s.t) : state :=
-        fold_left m.(transition state) w m.(initial state).
-
-    Theorem run_in_states : forall {state : Type} (m : t state) (w : list s.t),
-        In (run m w) (states state m).
-    Proof. apply states_complete. Qed.
+  Include (Moore s O).
 End MooreType.
 
 Module MooreCompiler (s : Symbol) (O : Output) (Moore : MooreType s O).

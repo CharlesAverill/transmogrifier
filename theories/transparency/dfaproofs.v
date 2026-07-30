@@ -1,7 +1,7 @@
-From lstar Require Import automata.DFA.
+From lstar Require Import automata.DFA automata.Moore.
 From compcert Require Import AST Clight Ctypes Integers Values Coqlib.
 From compcert Require Import ClightBigstep Events Globalenvs Memory.
-From Transmogrifier.compiler Require Import dfa.
+From Transmogrifier.compiler Require Import dfa moore.
 From Transmogrifier.transparency Require Import mooreproofs.
 From Stdlib Require Import List ZArith Lia.
 Import ListNotations.
@@ -9,18 +9,18 @@ Open Scope Z_scope.
 
 (** Correctness of the DFA -> Clight compiler *)
 
-Module Correctness (s : Symbol) (DFA : DFAType s).
+Module Correctness (s : Symbol) (DFA : DFAType s) (Moore : MooreType s Out).
 
-Module DC := DFACompiler s DFA.
+Module DC := DFACompiler s DFA Moore.
 
-Module M := mooreproofs.Correctness s DC.Out DC.Moore.
+Module M := mooreproofs.Correctness s Out Moore.
 Import M.MC.
 
 Section coercion.
 Variable state : Type.
 
-Definition moore_of_dfa (d : DFA.t state) : DC.Moore.t state :=
-  DC.Moore.Build_t state
+Definition moore_of_dfa (d : DFA.t state) : Moore.t state :=
+  Moore.Build_t state
     d.(DFA.transition state)
     d.(DFA.initial state)
     d.(DFA.accept state)
@@ -28,15 +28,15 @@ Definition moore_of_dfa (d : DFA.t state) : DC.Moore.t state :=
     (d.(DFA.states_complete state)).
 
 Lemma run_moore_of_dfa : forall (d : DFA.t state) (w : list s.t),
-  DC.Moore.run (moore_of_dfa d) w = DFA.run d w.
+  Moore.run (moore_of_dfa d) w = DFA.run d w.
 Proof. reflexivity. Qed.
 
 Lemma states_moore_of_dfa : forall (d : DFA.t state),
-  DC.Moore.states state (moore_of_dfa d) = DFA.states state d.
+  Moore.states state (moore_of_dfa d) = DFA.states state d.
 Proof. reflexivity. Qed.
 
 Lemma accept_moore_of_dfa : forall (d : DFA.t state) (q : state),
-  DC.Moore.output state (moore_of_dfa d) q = DFA.accept state d q.
+  Moore.output state (moore_of_dfa d) q = DFA.accept state d q.
 Proof. reflexivity. Qed.
 
 End coercion.
@@ -52,9 +52,7 @@ Notation m := (moore_of_dfa state dfa).
 Variable states_bounded : Z.of_nat (length dfa.(DFA.states _)) < Int64.modulus.
 Variable syms_bounded   : 0 < Z.of_nat (length s.enum) < Int64.modulus.
 
-(** [DC.Out.enum] is [[true; false]], so the output bound is discharged, not
-    assumed: it is the one hypothesis of [mooreproofs] a DFA pays for free. *)
-Lemma O_bounded : 0 < Z.of_nat (length DC.Out.enum) < Int64.modulus.
+Lemma O_bounded : 0 < Z.of_nat (length Out.enum) < Int64.modulus.
 Proof. cbn. unfold Int64.modulus, Int64.wordsize, Wordsize_64.wordsize, two_power_nat. cbn. lia. Qed.
 
 Variable base : ident.
@@ -70,7 +68,6 @@ Variable Hinit : Genv.init_mem p = Some m0.
 Variable table_bounded :
   8 * (Z.of_nat (length dfa.(DFA.states _)) * Z.of_nat (length s.enum)) < Ptrofs.modulus.
 
-(** Indices. Definitionally the Moore ones, since [m] shares [dfa]'s carrier. *)
 Definition sidx (q : state) : option Z := M.sidx state m state_eq_dec q.
 Definition symidx (a : s.t) : option Z := M.symidx a.
 
@@ -114,8 +111,7 @@ Proof.
 Qed.
 
 (** [accept_entry] indexes into [DC.Out.enum = [true; false]], so it is [0] on
-    an accepting state and [1] otherwise. This is the DFA-facing restatement
-    that [mooreproofs] cannot make, and the only lemma here with real content. *)
+    an accepting state and [1] otherwise. *)
 Lemma accept_entry_val : forall q,
   accept_entry state m q = (if dfa.(DFA.accept _) q then 0 else 1).
 Proof.

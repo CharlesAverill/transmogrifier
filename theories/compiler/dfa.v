@@ -1,4 +1,4 @@
-From lstar Require Import automata.DFA.
+From lstar Require Import automata.DFA automata.Moore.
 From compcert Require Import AST Clight Ctypes Integers Cop Maps.
 From Transmogrifier Require Import compiler.moore.
 From Stdlib Require Import String List ZArith Bool.
@@ -17,25 +17,8 @@ Open Scope Z_scope.
                 unsigned int accept(unsigned int q); *)
 
 Module Type DFAType (s : Symbol).
-  Record t (state : Type) : Type := {
-        transition : state -> s.t -> state;
-        initial : state;
-        accept : state -> bool;
-        states : list state;
-        states_complete : forall w, In (fold_left transition w initial) (states)
-    }.
-
-  Definition run {state : Type} (dfa : t state) (s : list s.t) : state :=
-        fold_left dfa.(transition state) s dfa.(initial state).
-
-  Theorem run_in_states : forall {state : Type} (d : t state) (w : list s.t),
-        In (run d w) (states state d).
-  Proof. apply states_complete. Qed.
+  Include (DFA s).
 End DFAType.
-
-Module DFACompiler (s : Symbol) (DFA : DFAType s).
-
-Import DFA.
 
 Module Out <: Output.
   Definition t := bool.
@@ -45,24 +28,24 @@ Module Out <: Output.
   Proof. unfold enum. intros [|]. now left. right. now left. Qed.
 End Out.
 
-Module Moore <: MooreType s Out.
-  Record t (state : Type) : Type := {
-        transition : state -> s.t -> state;
-        initial : state;
-        output : state -> bool;
-        states : list state;
-        states_complete : forall w, In (fold_left transition w initial) (states)
-    }.
+Module DFACompiler (s : Symbol) (DFA : DFAType s) (Moore : MooreType s Out).
 
-  Definition run {state : Type} (dfa : t state) (s : list s.t) : state :=
-        fold_left dfa.(transition state) s dfa.(initial state).
-
-  Theorem run_in_states : forall {state : Type} (d : t state) (w : list s.t),
-        In (run d w) (states state d).
-  Proof. intros. apply states_complete. Qed.
-End Moore.
+Import DFA Moore.
 
 Module MooreCompiler := MooreCompiler s Out Moore.
-Include MooreCompiler.
+
+Definition moore_of_dfa {state : Type} (d : DFA.t state) : Moore.t state :=
+  Moore.Build_t state
+    d.(DFA.transition state)
+    d.(DFA.initial state)
+    d.(DFA.accept state)
+    d.(DFA.states state)
+    (d.(DFA.states_complete state)).
+
+Definition compile_dfa {state : Type}
+    (d : DFA.t state)
+    (state_eq_dec : forall x y : state, {x = y} + {x <> y})
+    (base : ident) : result Clight.program string :=
+  MooreCompiler.compile_program state (moore_of_dfa d) state_eq_dec base.
 
 End DFACompiler.

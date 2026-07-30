@@ -13,9 +13,7 @@ Module CompileLearnedMealy (s : Symbol) (O : Output) (L : MealyLanguage s O)
                            (Tch : MealyTeacher s O L)
                            (Learner : MealyLearner s O L Tch).
 
-Module M <: MealyType s O := L.M.
-
-Module Correctness := Correctness s O M.
+Module Correctness := Correctness s O L.M.
 Import Correctness L M MC.
 
 Definition learned : { St : Type & { m : M.t St | minimal m } } :=

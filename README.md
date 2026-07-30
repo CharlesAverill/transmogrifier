@@ -6,7 +6,7 @@ Built atop [lstar-rocq](https://github.com/CharlesAverill/lstar-rocq).
 
 Currently-supported automata:
 - [x] DFAs
-- [x] NFAs (Incomplete correctness proof)
+- [x] NFAs (via translating to DFAs and reusing the DFA compiler)
 - [x] Moore Machines
 - [x] Mealy Machines
 

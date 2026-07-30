@@ -1,119 +1,51 @@
-void delta(unsigned long long *, unsigned long long, unsigned long long *);
-_Bool accept(unsigned long long *);
-void run(unsigned long long *, unsigned long long, unsigned long long *);
-int $19(void);
-unsigned long long const table[8] = { 12LL, 8LL, 13LL, 9LL, 14LL, 10LL, 12LL,
-  8LL, };
+unsigned long long delta(unsigned long long, unsigned long long);
+unsigned long long accept(unsigned long long);
+unsigned long long run(unsigned long long *, unsigned long long);
+int $12(void);
+unsigned long long const init[32] = { 0LL, 0LL, 3LL, 1LL, 7LL, 5LL, 7LL, 5LL,
+  11LL, 9LL, 11LL, 9LL, 15LL, 13LL, 15LL, 13LL, 3LL, 1LL, 3LL, 1LL, 7LL, 5LL,
+  7LL, 5LL, 11LL, 9LL, 11LL, 9LL, 15LL, 13LL, 15LL, 13LL, };
 
-unsigned long long const q0[1] = { 8LL, };
+unsigned long long const final[16] = { 1LL, 1LL, 1LL, 1LL, 1LL, 1LL, 1LL,
+  1LL, 0LL, 0LL, 0LL, 0LL, 0LL, 0LL, 0LL, 0LL, };
 
-unsigned long long const atable[1] = { 1LL, };
+unsigned long long delta(unsigned long long $6, unsigned long long $7)
+{
+  if ($6 < 16LLU & $7 < 2LLU) {
+    return *(init + ($6 * 2LLU + $7));
+  } else {
+    return 16LLU;
+  }
+}
 
-void delta(unsigned long long *$6, unsigned long long $8, unsigned long long *$7)
+unsigned long long accept(unsigned long long $6)
+{
+  if ($6 < 16LLU) {
+    return *(final + $6);
+  } else {
+    return (_Bool) 2LLU;
+  }
+}
+
+unsigned long long const table = 1LL;
+
+unsigned long long run(unsigned long long *$8, unsigned long long $9)
 {
   register unsigned long long $10;
-  register unsigned long long $11;
-  register unsigned long long $9;
-  register unsigned long long $12;
-  $11 = 0LLU;
-  for (; 1; $11 = $11 + 1LLU) {
-    if (! ($11 < 1LLU)) {
-      break;
-    }
-    *($7 + $11) = 0LLU;
-  }
-  if (! ($8 < 2LLU)) {
-    return;
-  }
+  register unsigned long long $6;
   $10 = 0LLU;
-  for (; 1; $10 = $10 + 1LLU) {
-    if (! ($10 < 1LLU)) {
-      break;
-    }
-    $12 = *($6 + $10);
-    if ($12 == 0LLU) {
-      continue;
-    } else {
-      $9 = 0LLU;
-      for (; 1; $9 = $9 + 1LLU, $12 = $12 >> 1LLU) {
-        if (! ($9 < 64LLU)) {
-          break;
-        }
-        if ($12 == 0LLU) {
-          break;
-        }
-        if (($12 & 1LLU) != 0LLU) {
-          if ($10 * 64LLU + $9 < 4LLU) {
-            $11 = 0LLU;
-            for (; 1; $11 = $11 + 1LLU) {
-              if (! ($11 < 1LLU)) {
-                break;
-              }
-              *($7 + $11) =
-                *($7 + $11)
-                  | *(table
-                       + ((($10 * 64LLU + $9) * 2LLU + $8) * 1LLU + $11));
-            }
-          }
-        }
-      }
-    }
-  }
-}
-
-_Bool accept(unsigned long long *$6)
-{
-  register unsigned long long $11;
-  register unsigned long long $16;
-  $16 = 0LLU;
-  $11 = 0LLU;
-  for (; 1; $11 = $11 + 1LLU) {
-    if (! ($11 < 1LLU)) {
-      break;
-    }
-    $16 = $16 | *($6 + $11) & *(atable + $11);
-  }
-  return $16 != 0LLU;
-}
-
-void run(unsigned long long *$13, unsigned long long $14, unsigned long long *$17)
-{
-  unsigned long long $6[1];
-  unsigned long long $7[1];
-  register unsigned long long $15;
-  register unsigned long long $11;
-  $11 = 0LLU;
-  for (; 1; $11 = $11 + 1LLU) {
-    if (! ($11 < 1LLU)) {
-      break;
-    }
-    *($6 + $11) = *(q0 + $11);
-  }
-  $15 = 0LLU;
+  $6 = 1LLU;
   while (1) {
-    if (! ($15 < $14)) {
+    if (! ($10 < $9)) {
       break;
     }
-    delta($6, *($13 + $15), $7);
-    $11 = 0LLU;
-    for (; 1; $11 = $11 + 1LLU) {
-      if (! ($11 < 1LLU)) {
-        break;
-      }
-      *($6 + $11) = *($7 + $11);
-    }
-    $15 = $15 + 1LLU;
+    $6 = delta($6, *($8 + $10));
+    $10 = $10 + 1LLU;
   }
-  $11 = 0LLU;
-  for (; 1; $11 = $11 + 1LLU) {
-    if (! ($11 < 1LLU)) {
-      break;
-    }
-    *($17 + $11) = *($6 + $11);
-  }
+  return $6;
 }
 
-int $19(void)
+int $12(void)
 {
   return 0;
 }

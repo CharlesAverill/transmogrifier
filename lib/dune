@@ -47,7 +47,7 @@
   Specif
   dfa
   mealy
-  moore0
+  moore1
   nfa)
  (theories Stdlib lstar compcert Flocq Transmogrifier))
 

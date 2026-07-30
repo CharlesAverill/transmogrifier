@@ -1,4 +1,4 @@
-From lstar Require Import automata.DFA Teacher.
+From lstar Require Import automata.DFA automata.Moore Teacher.
 From Transmogrifier Require Import compiler.dfa transparency.dfaproofs.
 From compcert Require Import AST Clight Ctypes Integers Values Coqlib.
 From compcert Require Import ClightBigstep Events Globalenvs Memory.
@@ -12,10 +12,10 @@ Module CompileLearnedDFA (s : Symbol) (L : RegularLanguage s)
                          (Tch : DFATeacher s L)
                          (Learner : DFALearner s L Tch).
 
-Module D <: DFAType s := L.D.
-
-Module Correctness := Correctness s D.
-Import Correctness DC L M.
+Module Moore := Moore s Out.
+Module Correctness := Correctness s L.D Moore.
+Import Correctness DC L M MC.
+Module D := L.D.
 
 Definition learned : { St : Type & { d : D.t St | minimal d } } :=
     Learner.learn tt.
@@ -29,12 +29,12 @@ Section correctness.
 Variable p : Clight.program.
 Variable m0 : mem.
 Definition ge := M.ge p.
-Definition m := moore_of_dfa LSt learned_dfa.
+Definition m := moore_of_dfa learned_dfa.
 
 (* The learned DFA has compiled successfully and is well-formed *)
 Variable state_eq_dec : forall (x y : LSt), {x = y} + {x <> y}.
 Variable compile_ok :
-    compile_program LSt (moore_of_dfa LSt learned_dfa) state_eq_dec base = Ok p.
+    compile_dfa learned_dfa state_eq_dec base = Ok p.
 Variable m0_ok :
     Genv.init_mem p = Some m0.
 Variable states_ok :

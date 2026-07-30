@@ -5,6 +5,10 @@ Import ListNotations.
 Open Scope string_scope.
 Open Scope Z_scope.
 
+Module Type MealyType (s : Symbol) (O : Output).
+  Include (Mealy s O).
+End MealyType.
+
 (** Compile a Mealy machine into a Clight program.
 
     \Sigma : alphabet, indices 0..|\Sigma|-1
@@ -18,23 +22,6 @@ Open Scope Z_scope.
              which returns the next state's index and writes the output symbol's
              index through [out].
     run    : emits the output string into a caller-provided buffer. *)
-
-Module Type MealyType (s : Symbol) (O : Output).
-  Record t (state : Type) : Type := {
-        transition : state -> s.t -> state;
-        initial : state;
-        output : state -> s.t -> O.t;
-        states : list state;
-        states_complete : forall w, In (fold_left transition w initial) states
-    }.
-
-  Definition run {state : Type} (m : t state) (w : list s.t) : state :=
-      fold_left m.(transition state) w m.(initial state).
-
-  Theorem run_in_states : forall {state : Type} (m : t state) (w : list s.t),
-      In (run m w) (states state m).
-  Proof. apply states_complete. Qed.
-End MealyType.
 
 Module MealyCompiler (s : Symbol) (O : Output) (Mealy : MealyType s O).
 

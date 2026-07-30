@@ -1,468 +1,198 @@
-From lstar Require Import automata.NFA.
+From lstar Require Import automata.NFA automata.DFA.
 From compcert Require Import AST Clight Ctypes Integers Cop Maps.
-From Stdlib Require Import String List ZArith.
+From Transmogrifier Require Import compiler.dfa compiler.moore.
+From Stdlib Require Import List ZArith Permutation.
 Import ListNotations.
 Open Scope string_scope.
 Open Scope Z_scope.
 
-(** Compile an NFA into a Clight program.
-
-    State variables are compiled as bitsets
-
-    \Sigma : alphabet, indices 0..|\Sigma|-1
-    Q      : state set, indices 0..|Q|-1; state [i] lives in bit [i mod 64] of
-             word [i / 64]
-    I      : the initial set, exported as a read-only bitmap global
-    F      : the accepting set, exported as a read-only bitmap global; a run
-             accepts iff its final set intersects it
-    \delta : compiled to
-                void step(unsigned long long *cur, unsigned long long s,
-                          unsigned long long *next);
-             where [cur] and [next] are [nwords]-word bitmaps *)
+#[local] Set Warnings "-intuition-auto-with-star".
 
 Module Type NFAType (s : Symbol).
-  Record t (state : Type) : Type := {
-        transition : state -> s.t -> list state;
-        initial : list state;
-        accept : state -> bool;
-        states : list state;
-        states_complete : forall w q,
-            In q (fold_left (fun qs a => flat_map (fun q => transition q a) qs) w initial) ->
-            In q states
-    }.
-
-  Definition step {state : Type} (trans : state -> s.t -> list state)
-      (qs : list state) (a : s.t) : list state :=
-      flat_map (fun q => trans q a) qs.
-
-  Definition run {state : Type} (n : t state) (w : list s.t) : list state :=
-      fold_left (step n.(transition state)) w n.(initial state).
-
-  Parameter run_in_states : forall {state : Type} (n : t state) (w : list s.t) q,
-      In q (run n w) -> In q (states state n).
+  Include (NFA s).
 End NFAType.
 
-Module NFACompiler (s : Symbol) (NFA : NFAType s).
+(** NFA to DFA conversion *)
+Module NFA_to_DFA (s : Symbol) (D : DFAType s) (NFA : NFAType s).
+  Import NFA D s.
+  Section Conversion.
+  Context {nfa_state : Type}.
+  Variable eq_dec : forall x y : nfa_state, {x = y} + {x <> y}.
 
-Import NFA.
+  Definition list_state_eq_dec : forall x y : list nfa_state, {x = y} + {x <> y} :=
+      list_eq_dec eq_dec.
 
-(* Identifier allocation *)
+  Fixpoint powerset (l : list nfa_state) : list (list nfa_state) :=
+    match l with
+    | [] => [[]]
+    | x :: xs =>
+        let ps := powerset xs in
+        ps ++ map (cons x) ps
+    end.
 
-Record idents : Type := {
-  id_step   : ident;
-  id_accept : ident;
-  id_table  : ident;
-  id_init   : ident;
-  id_final  : ident;
-  id_cur    : ident;
-  id_next   : ident;
-  id_s      : ident;
-  id_q      : ident;
-  id_k      : ident;
-  id_j      : ident;
-  id_word   : ident;
-  id_w      : ident;
-  id_len    : ident;
-  id_i      : ident;
-  id_acc    : ident;
-  id_out    : ident;
-  id_run    : ident;
-  id_main   : ident
-}.
+  Lemma nil_in_powerset : forall l, In [] (powerset l).
+  Proof.
+    induction l.
+      now left.
+    simpl. apply in_or_app. now left.
+  Qed.
 
-Definition alloc_idents (base : ident) : idents := {|
-  id_step   := base;
-  id_accept := 1 + base;
-  id_table  := 2 + base;
-  id_init   := 3 + base;
-  id_final  := 4 + base;
-  id_cur    := 5 + base;
-  id_next   := 6 + base;
-  id_s      := 7 + base;
-  id_q      := 8 + base;
-  id_k      := 9 + base;
-  id_j      := 10 + base;
-  id_word   := 11 + base;
-  id_w      := 12 + base;
-  id_len    := 13 + base;
-  id_i      := 14 + base;
-  id_acc    := 15 + base;
-  id_out    := 16 + base;
-  id_run    := 17 + base;
-  id_main   := 18 + base
-|}%positive.
+  Lemma sublist_in_powerset : forall l1 l2 l3,
+    In l2 (powerset (l1 ++ l2 ++ l3)).
+  Proof.
+    induction l1; intros; simpl in *.
+    - induction l2. apply nil_in_powerset.
+      simpl. apply in_or_app. right. now apply in_map.
+    - apply in_or_app. left. apply IHl1.
+  Qed.
 
-(* Types *)
+  Definition canonical (qs : list nfa_state) : list nfa_state :=
+    nodup eq_dec qs.
 
-Definition tlong : type := Tlong Unsigned noattr.
-Definition tuint : type := Tint I32 Unsigned noattr.
-Definition tint : type := Tint I32 Signed noattr.
-Definition tvoid : type := Tvoid.
-Definition tsetptr : type := Tpointer tlong noattr.
-Definition tbool : type := Tint IBool Unsigned noattr.
+  Lemma filter_in_powerset : forall (f : nfa_state -> bool) l,
+    In (filter f l) (powerset l).
+  Proof.
+    induction l; simpl in *.
+      now left.
+    destruct (f a); apply in_or_app.
+      right. now apply in_map.
+      now left.
+  Qed.
 
-Section compiler.
-Variable state : Type.
-Variable nfa : NFA.t state.
-Variable state_eq_dec : forall x y : state, {x = y} + {x <> y}.
+  Theorem powerset_complete : forall (l qs : list nfa_state),
+    (forall x, In x qs -> In x l) -> NoDup qs ->
+    exists qs', (forall x, In x qs' <-> In x qs) /\ In qs' (powerset l).
+  Proof.
+    intros. exists (filter (fun x => if in_dec eq_dec x qs then true else false) l).
+    split; [| apply filter_in_powerset ].
+    intro. rewrite filter_In.
+    destruct (in_dec eq_dec x qs) as [Hin | Hnin]; simpl.
+    - split; auto.
+    - now split.
+  Qed.
 
-Fixpoint index_of {X : Type} (eq_dec : forall x y : X, {x = y} + {x <> y})
-                  (target : X) (l : list X) (idx : Z) : option Z :=
-  match l with
-  | [] => None
-  | h :: t => if eq_dec target h then Some idx else index_of eq_dec target t (Z.succ idx)
-  end.
+  (* The members of [qs] that are NFA states, listed in the fixed order of [NFA.states]. *)
+  Definition restrict (nfa : NFA.t nfa_state) (qs : list nfa_state) : list nfa_state :=
+    filter (fun x => if in_dec eq_dec x qs then true else false)
+           (NFA.states nfa_state nfa).
 
-Definition enumerate {X : Type} (l : list X) : list (Z * X) :=
-  combine (map Z.of_nat (seq 0 (length l))) l.
+  Lemma restrict_In : forall nfa qs x,
+    In x (restrict nfa qs) <-> In x (NFA.states nfa_state nfa) /\ In x qs.
+  Proof.
+    intros. unfold restrict. rewrite filter_In.
+    destruct (in_dec eq_dec x qs); simpl; intuition.
+  Qed.
 
-Definition state_table : list (Z * state) := enumerate nfa.(states _).
-Definition sym_table   : list (Z * s.t)   := enumerate s.enum.
+  Definition dtransition (nfa : NFA.t nfa_state)
+      (qs : list nfa_state) (a : s.t) : list nfa_state :=
+    restrict nfa (NFA.step (NFA.transition nfa_state nfa) qs a).
 
-Definition nsyms : Z := Z.of_nat (length s.enum).
-Definition nstates : Z := Z.of_nat (length nfa.(states _)).
+  Definition daccept (nfa : NFA.t nfa_state) (qs : list nfa_state) : bool :=
+    existsb (NFA.accept nfa_state nfa) qs.
 
-(** Words per bitmap: [ceil(nstates / 64)] *)
-Definition nwords : Z := Z.max 1 ((nstates + 63) / 64).
+  (* Every reachable DFA state is a [restrict], hence in the powerset. *)
+  Lemma dtransition_in_powerset : forall nfa qs a,
+    In (dtransition nfa qs a) (powerset (NFA.states nfa_state nfa)).
+  Proof. intros. apply filter_in_powerset. Qed.
 
-(* Bitmaps *)
+  Lemma fold_dtransition_in_powerset : forall nfa w qs0,
+    In qs0 (powerset (NFA.states nfa_state nfa)) ->
+    In (fold_left (dtransition nfa) w qs0) (powerset (NFA.states nfa_state nfa)).
+  Proof.
+    induction w; intros; simpl in *.
+      assumption.
+    apply IHw, dtransition_in_powerset.
+  Qed.
 
-Definition state_index (q : state) : option Z :=
-  index_of state_eq_dec q nfa.(states _) 0.
+  Lemma to_dfa_states_complete : forall nfa w,
+    In (fold_left (dtransition nfa) w
+          (restrict nfa (NFA.initial nfa_state nfa)))
+       (powerset (NFA.states nfa_state nfa)).
+  Proof. intros. apply fold_dtransition_in_powerset, filter_in_powerset. Qed.
 
-(** Word [k] of the bitmap holding index set [idxs]. *)
-Definition word_of_indices (idxs : list Z) (k : Z) : Z :=
-  fold_left
-    (fun acc i =>
-       if andb (Z.leb (64 * k) i) (Z.ltb i (64 * (k + 1)))
-       then Z.lor acc (Z.shiftl 1 (i - 64 * k))
-       else acc)
-    idxs 0.
+  Definition to_dfa (nfa : NFA.t nfa_state) : D.t (list nfa_state) :=
+    {| D.transition := dtransition nfa;
+       D.initial := restrict nfa (NFA.initial nfa_state nfa);
+       D.accept := daccept nfa;
+       D.states := powerset (NFA.states nfa_state nfa);
+       D.states_complete := to_dfa_states_complete nfa |}.
 
-(** The [nwords] init_data of the bitmap for [idxs], word 0 first. *)
-Definition bitmap_init (idxs : list Z) : list init_data :=
-  map (fun k => Init_int64 (Int64.repr (word_of_indices idxs k)))
-      (map Z.of_nat (seq 0 (Z.to_nat nwords))).
+  (* Reachable NFA states are closed under one transition step *)
+  Lemma step_reachable_closed : forall nfa qs a q,
+    (forall x, In x qs -> exists u, In x (NFA.run nfa u)) ->
+    In q (NFA.step (NFA.transition nfa_state nfa) qs a) ->
+    exists u, In q (NFA.run nfa u).
+  Proof.
+    intros. unfold NFA.step in H0. apply in_flat_map in H0.
+    destruct H0 as (q' & Hq' & Htrans).
+    destruct (H q' Hq') as (u & Hu).
+    exists (u ++ [a])%list.
+    unfold NFA.run, NFA.run_from in *.
+    rewrite fold_left_app. simpl.
+    unfold NFA.step. apply in_flat_map. exists q'. now split.
+  Qed.
 
-(** Indices of a list of states, dropping any not in [states]. *)
-Definition indices_of (qs : list state) : list Z :=
-  fold_right (fun q acc =>
-                match state_index q with
-                | Some i => i :: acc
-                | None => acc
-                end) [] qs.
+  Lemma run_from_correspond : forall nfa w dqs qs,
+    (forall q, In q dqs <-> In q qs) ->
+    (forall q, In q qs -> exists u, In q (NFA.run nfa u)) ->
+    forall q, In q (fold_left (dtransition nfa) w dqs)
+            <-> In q (fold_left (NFA.step (NFA.transition nfa_state nfa)) w qs).
+  Proof.
+    induction w; intros; simpl in *. auto.
+    apply IHw; [|eauto using step_reachable_closed].
+    intro x. unfold dtransition. rewrite restrict_In. split.
+      intros. destruct H1. unfold NFA.step in *.
+        apply in_flat_map in H2. destruct H2 as (y & Hy & Hxy).
+        apply in_flat_map. exists y. split. now apply H. assumption.
+      intros. split.
+        destruct (step_reachable_closed nfa qs a x H0 H1) as (u & Hu).
+          unfold NFA.run, NFA.run_from in Hu.
+          apply (NFA.states_complete nfa_state nfa u x). assumption.
+        unfold NFA.step in *.
+          apply in_flat_map in H1. destruct H1 as (y & Hy & Hxy).
+          apply in_flat_map. exists y. split. now apply H. assumption.
+  Qed.
 
-(* delta
+  Lemma run_correspond : forall nfa w q,
+    In q (D.run (to_dfa nfa) w) <-> In q (NFA.run nfa w).
+  Proof.
+    intros. unfold D.run, to_dfa, NFA.run, NFA.run_from. simpl.
+    apply run_from_correspond.
+    - intros. rewrite restrict_In. split; intro. intuition. intuition. unfold NFA.states.
+      destruct nfa. simpl in *. now apply states_complete0 with (w := []).
+    - intros. exists []. apply H.
+  Qed.
 
-   Row (q, a) is the [nwords]-word bitmap of [transition q a].
-   Word [j] of row [(q, a)] sits at [(q * |Sigma| + a) * nwords + j]. *)
+  Lemma existsb_iff_In : forall (f : nfa_state -> bool) l1 l2,
+    (forall q, In q l1 <-> In q l2) -> existsb f l1 = existsb f l2.
+  Proof.
+    intros. apply Bool.eq_true_iff_eq. split; intro;
+      apply existsb_exists in H0; destruct H0 as (q & Hq & Hf);
+      apply existsb_exists; exists q; split; eauto; now apply H.
+  Qed.
 
-Definition table_row (q : state) (sym : s.t) : list init_data :=
-  bitmap_init (indices_of (nfa.(transition _) q sym)).
+  (* The subset-construction DFA accepts exactly the NFA's language. *)
+  Theorem to_dfa_correct : forall nfa w,
+    D.accept_string (to_dfa nfa) w = NFA.accept_string nfa w.
+  Proof.
+    intros. unfold D.accept_string, NFA.accept_string.
+    replace (D.accept (list nfa_state) (to_dfa nfa))
+      with (daccept nfa) by reflexivity.
+    unfold daccept.
+    apply existsb_iff_In. intro. apply run_correspond.
+  Qed.
 
-Definition table_init : list init_data :=
-  flat_map (fun '(_, q) =>
-              flat_map (fun '(_, sym) => table_row q sym) sym_table)
-           state_table.
+  End Conversion.
+End NFA_to_DFA.
 
-Definition table_type : type :=
-  Tarray tlong (nstates * nsyms * nwords) noattr.
+Module NFACompiler (s : Symbol) (N : NFAType s) (D : DFAType s) (M : MooreType s Out).
 
-Definition compile_table : globvar type := {|
-  gvar_info     := table_type;
-  gvar_init     := table_init;
-  gvar_readonly := true;
-  gvar_volatile := false
-|}.
+  Module N2D := NFA_to_DFA s D N.
+  Import N.
 
-(* The initial and accepting bitmaps *)
+  Module DC := DFACompiler s D M.
 
-Definition set_type : type := Tarray tlong nwords noattr.
+  Definition compile_program {state} (n : N.t state) eq_dec base :=
+    DC.compile_dfa (N2D.to_dfa eq_dec n) (list_eq_dec eq_dec) base.
 
-Definition init_init : list init_data := bitmap_init (indices_of nfa.(initial _)).
-
-Definition compile_init : globvar type := {|
-  gvar_info     := set_type;
-  gvar_init     := init_init;
-  gvar_readonly := true;
-  gvar_volatile := false
-|}.
-
-Definition accepting_states : list state := filter nfa.(accept _) nfa.(states _).
-
-Definition final_init : list init_data := bitmap_init (indices_of accepting_states).
-
-Definition compile_final : globvar type := {|
-  gvar_info     := set_type;
-  gvar_init     := final_init;
-  gvar_readonly := true;
-  gvar_volatile := false
-|}.
-
-(* Expression helpers *)
-
-Definition idx (base : Clight.expr) (off : Clight.expr) : Clight.expr :=
-  Ederef (Ebinop Oadd base off tsetptr) tlong.
-
-Definition const (z : Z) : Clight.expr := Econst_long (Int64.repr z) tlong.
-
-Definition lt_test (v : ident) (k : Z) : Clight.expr :=
-  Ebinop Olt (Etempvar v tlong) (const k) tint.
-
-(* void step(unsigned long long *cur, unsigned long long s,
-             unsigned long long *next) {
-     unsigned long long k, j, q, word;
-     for (j = 0; j < nwords; j++) next[j] = 0;
-     if (!(s < |Sigma|)) return;
-     for (k = 0; k < nwords; k++) {
-       word = cur[k];
-       for (q = 0; q < 64; q++) {
-         if (word & (1 << q))
-           for (j = 0; j < nwords; j++)
-             next[j] |= table[((k*64 + q) * |Sigma| + s) * nwords + j];
-       }
-     }
-   } *)
-
-Definition zero_next (ids : idents) : statement :=
-  Ssequence
-    (Sset ids.(id_j) (const 0))
-    (Sloop
-      (Ssequence
-        (Sifthenelse (lt_test ids.(id_j) nwords) Sskip Sbreak)
-        (Sassign (idx (Etempvar ids.(id_next) tsetptr) (Etempvar ids.(id_j) tlong))
-                 (const 0)))
-      (Sset ids.(id_j)
-        (Ebinop Oadd (Etempvar ids.(id_j) tlong) (const 1) tlong))).
-
-(** [next[j] |= table[((k*64 + q) * nsyms + s) * nwords + j]] for all [j]. *)
-Definition union_row (ids : idents) : statement :=
-  Ssequence
-    (Sset ids.(id_j) (const 0))
-    (Sloop
-      (Ssequence
-        (Sifthenelse (lt_test ids.(id_j) nwords) Sskip Sbreak)
-        (Sassign
-          (idx (Etempvar ids.(id_next) tsetptr) (Etempvar ids.(id_j) tlong))
-          (Ebinop Oor
-            (idx (Etempvar ids.(id_next) tsetptr) (Etempvar ids.(id_j) tlong))
-            (idx (Evar ids.(id_table) table_type)
-              (Ebinop Oadd
-                (Ebinop Omul
-                  (Ebinop Oadd
-                    (Ebinop Omul
-                      (Ebinop Oadd
-                        (Ebinop Omul (Etempvar ids.(id_k) tlong) (const 64) tlong)
-                        (Etempvar ids.(id_q) tlong) tlong)
-                      (const nsyms) tlong)
-                    (Etempvar ids.(id_s) tlong) tlong)
-                  (const nwords) tlong)
-                (Etempvar ids.(id_j) tlong) tlong))
-            tlong)))
-      (Sset ids.(id_j)
-        (Ebinop Oadd (Etempvar ids.(id_j) tlong) (const 1) tlong))).
-
-Definition step_body (ids : idents) : statement :=
-  Ssequence
-    (zero_next ids)
-    (Ssequence
-      (Sifthenelse (lt_test ids.(id_s) nsyms) Sskip (Sreturn None))
-      (Ssequence
-        (Sset ids.(id_k) (const 0))
-        (Sloop
-          (Ssequence
-            (Sifthenelse (lt_test ids.(id_k) nwords) Sskip Sbreak)
-            (Ssequence
-              (Sset ids.(id_word)
-                (idx (Etempvar ids.(id_cur) tsetptr) (Etempvar ids.(id_k) tlong)))
-              (* OPTIMIZATION 1: Skip entirely empty words immediately *)
-              (Sifthenelse (Ebinop Oeq (Etempvar ids.(id_word) tlong) (const 0) tint)
-                Scontinue
-                (Ssequence
-                  (Sset ids.(id_q) (const 0))
-                  (Sloop
-                    (Ssequence
-                      (Sifthenelse (lt_test ids.(id_q) 64) Sskip Sbreak)
-                      (Ssequence
-                        (* OPTIMIZATION 2: Early exit when remaining bits are all zero *)
-                        (Sifthenelse (Ebinop Oeq (Etempvar ids.(id_word) tlong) (const 0) tint)
-                          Sbreak
-                          Sskip)
-                        (Sifthenelse
-                          (* OPTIMIZATION 3: Check lowest bit instead of shifting (1 << q) *)
-                          (Ebinop One
-                            (Ebinop Oand (Etempvar ids.(id_word) tlong) (const 1) tlong)
-                            (const 0) tint)
-                          (Sifthenelse
-                            (Ebinop Olt
-                              (Ebinop Oadd
-                                (Ebinop Omul (Etempvar ids.(id_k) tlong) (const 64) tlong)
-                                (Etempvar ids.(id_q) tlong) tlong)
-                              (const nstates) tint)
-                            (union_row ids)
-                            Sskip)
-                          Sskip)))
-                    (Ssequence
-                      (Sset ids.(id_q)
-                        (Ebinop Oadd (Etempvar ids.(id_q) tlong) (const 1) tlong))
-                      (* OPTIMIZATION 4: Shift word right by 1 every iteration *)
-                      (Sset ids.(id_word)
-                        (Ebinop Oshr (Etempvar ids.(id_word) tlong) (const 1) tlong))))))))
-          (Sset ids.(id_k)
-            (Ebinop Oadd (Etempvar ids.(id_k) tlong) (const 1) tlong))))).
-
-Definition compile_step (ids : idents) : Clight.fundef :=
-  Internal {|
-    fn_return   := tvoid;
-    fn_callconv := AST.cc_default;
-    fn_params   := [(ids.(id_cur), tsetptr); (ids.(id_s), tlong);
-                    (ids.(id_next), tsetptr)];
-    fn_vars     := [];
-    fn_temps    := [(ids.(id_k), tlong); (ids.(id_j), tlong);
-                    (ids.(id_q), tlong); (ids.(id_word), tlong)];
-    fn_body     := step_body ids
-  |}.
-
-Definition step_type : type :=
-  Tfunction [tsetptr; tlong; tsetptr] tvoid AST.cc_default.
-
-(* unsigned long long accept(unsigned long long *cur) {
-     unsigned long long j, acc = 0;
-     for (j = 0; j < nwords; j++) acc |= cur[j] & final[j];
-     return acc != 0;
-   } *)
-
-Definition accept_body (ids : idents) : statement :=
-  Ssequence
-    (Sset ids.(id_acc) (const 0))
-    (Ssequence
-      (Ssequence
-        (Sset ids.(id_j) (const 0))
-        (Sloop
-          (Ssequence
-            (Sifthenelse (lt_test ids.(id_j) nwords) Sskip Sbreak)
-            (Sset ids.(id_acc)
-              (Ebinop Oor (Etempvar ids.(id_acc) tlong)
-                (Ebinop Oand
-                  (idx (Etempvar ids.(id_cur) tsetptr) (Etempvar ids.(id_j) tlong))
-                  (idx (Evar ids.(id_final) set_type) (Etempvar ids.(id_j) tlong))
-                  tlong)
-                tlong)))
-          (Sset ids.(id_j)
-            (Ebinop Oadd (Etempvar ids.(id_j) tlong) (const 1) tlong))))
-      (Sreturn (Some
-        (Ebinop One (Etempvar ids.(id_acc) tlong) (const 0) tint)))).
-
-Definition compile_accept (ids : idents) : Clight.fundef :=
-  Internal {|
-    fn_return   := tbool;
-    fn_callconv := AST.cc_default;
-    fn_params   := [(ids.(id_cur), tsetptr)];
-    fn_vars     := [];
-    fn_temps    := [(ids.(id_j), tlong); (ids.(id_acc), tlong)];
-    fn_body     := accept_body ids
-  |}.
-
-Definition accept_type : type :=
-  Tfunction [tsetptr] tbool AST.cc_default.
-
-(* void run(unsigned long long *w, unsigned long long len,
-             unsigned long long *out) {
-     unsigned long long cur[nwords], next[nwords], i, j;
-     for (j = 0; j < nwords; j++) cur[j] = init[j];
-     for (i = 0; i < len; i++) {
-       step(cur, w[i], next);
-       for (j = 0; j < nwords; j++) cur[j] = next[j];
-     }
-     for (j = 0; j < nwords; j++) out[j] = cur[j];
-   }
-
-   [run] yields the reached set through the [out] parameter. *)
-
-Definition w_type : type := Tpointer tlong noattr.
-
-Definition copy_loop (ids : idents) (dst src : Clight.expr) : statement :=
-  Ssequence
-    (Sset ids.(id_j) (const 0))
-    (Sloop
-      (Ssequence
-        (Sifthenelse (lt_test ids.(id_j) nwords) Sskip Sbreak)
-        (Sassign (idx dst (Etempvar ids.(id_j) tlong))
-                 (idx src (Etempvar ids.(id_j) tlong))))
-      (Sset ids.(id_j)
-        (Ebinop Oadd (Etempvar ids.(id_j) tlong) (const 1) tlong))).
-
-Definition run_prologue (ids : idents) : statement :=
-  Ssequence
-    (copy_loop ids (Evar ids.(id_cur) set_type) (Evar ids.(id_init) set_type))
-    (Sset ids.(id_i) (const 0)).
-
-Definition run_body (ids : idents) : statement :=
-  Ssequence
-    (Sifthenelse
-      (Ebinop Olt (Etempvar ids.(id_i) tlong) (Etempvar ids.(id_len) tlong) tint)
-      Sskip Sbreak)
-    (Ssequence
-      (Scall None (Evar ids.(id_step) step_type)
-         [ Evar ids.(id_cur) set_type;
-           idx (Etempvar ids.(id_w) w_type) (Etempvar ids.(id_i) tlong);
-           Evar ids.(id_next) set_type ])
-      (Ssequence
-        (copy_loop ids (Evar ids.(id_cur) set_type) (Evar ids.(id_next) set_type))
-        (Sset ids.(id_i)
-          (Ebinop Oadd (Etempvar ids.(id_i) tlong) (const 1) tlong)))).
-
-Definition run_loop (ids : idents) : statement := Sloop (run_body ids) Sskip.
-
-Definition compile_run (ids : idents) : Clight.fundef :=
-  let final_body :=
-    Ssequence
-      (Ssequence (run_prologue ids) (run_loop ids))
-      (copy_loop ids (Etempvar ids.(id_out) tsetptr) (Evar ids.(id_cur) set_type)) in
-  Internal {|
-    fn_return   := tvoid;
-    fn_callconv := AST.cc_default;
-    fn_params   := [(ids.(id_w), w_type); (ids.(id_len), tlong);
-                    (ids.(id_out), tsetptr)];
-    fn_vars     := [(ids.(id_cur), set_type); (ids.(id_next), set_type)];
-    fn_temps    := [(ids.(id_i), tlong); (ids.(id_j), tlong)];
-    fn_body     := final_body
-  |}.
-
-Definition run_type : type :=
-  Tfunction [w_type; tlong; tsetptr] tvoid AST.cc_default.
-
-(* Program assembly *)
-
-Definition tint32s : type := Tint I32 Signed noattr.
-
-Definition compile_main (ids : idents) : Clight.fundef :=
-  Internal {|
-    fn_return   := tint32s;
-    fn_callconv := AST.cc_default;
-    fn_params   := [];
-    fn_vars     := [];
-    fn_temps    := [];
-    fn_body     := Sreturn (Some (Econst_int Int.zero tint32s))
-  |}.
-
-Definition compile_program (base : ident) : result Clight.program string :=
-  let ids := alloc_idents base in
-  let defs : list (ident * globdef Clight.fundef type) :=
-    [ (ids.(id_table),  Gvar (compile_table));
-      (ids.(id_init),   Gvar (compile_init));
-      (ids.(id_final),  Gvar (compile_final));
-      (ids.(id_step),   Gfun (compile_step ids));
-      (ids.(id_accept), Gfun (compile_accept ids));
-      (ids.(id_run),    Gfun (compile_run ids));
-      (ids.(id_main),   Gfun (compile_main ids)) ] in
-  match Ctypes.make_program [] defs
-          [ids.(id_step); ids.(id_accept); ids.(id_table); ids.(id_init);
-           ids.(id_final); ids.(id_run); ids.(id_main)]
-          ids.(id_main) with
-  | Errors.OK p => Ok p
-  | Errors.Error msg => Error ("make_program failed")
-  end.
-
-End compiler.
 End NFACompiler.

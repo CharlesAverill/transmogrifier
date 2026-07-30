@@ -12,10 +12,9 @@ Module CompileLearnedMoore (s : Symbol) (O : Output) (L : MooreLanguage s O)
                            (Tch : MooreTeacher s O L)
                            (Learner : MooreLearner s O L Tch).
 
-Module M <: MooreType s O := L.M.
-
+Module M := L.M.
 Module Correctness := Correctness s O M.
-Import Correctness L M MC.
+Import Correctness L MC.
 
 Definition learned : { St : Type & { m : M.t St | minimal m } } :=
     Learner.learn tt.
