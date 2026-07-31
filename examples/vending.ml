@@ -274,9 +274,19 @@ let compile_to_c () =
   | Stdlib.Error e ->
       Printf.eprintf "Header generation failed: %s\n" e
 
+(* DJB2 Hash implementation *)
+let hash_string (str : string) (initial_hash : int64) : int64 =
+  let open Int64 in
+  let hash = ref initial_hash in
+  for i = 0 to String.length str - 1 do
+    let c = of_int (Char.code str.[i]) in
+    hash := add (add (shift_left !hash 5) !hash) c
+  done;
+  !hash
+
 let run_performance_test () =
   let dfa = Lazy.force learned in
-  let test_size = 100 in
+  let test_size = 100000 in
   
   print_endline "\n=== Generating OCaml Test Vector (vending) ===";
   let rec gen_vector i acc =
@@ -288,16 +298,24 @@ let run_performance_test () =
   in
   let test_vector = gen_vector (test_size - 1) [] in
 
-  print_endline (List.map S.string_of_t test_vector |> String.concat "");
+  (* print_endline (List.map S.string_of_t test_vector |> String.concat ""); *)
 
   print_endline "=== OCaml Benchmark ===";
   let start_time = Sys.time () in
   let result = Teacher.M.output_word dfa test_vector in
   let end_time = Sys.time () in
 
+  (* Sequentially hash each token string in the trace list *)
+  let final_hash = 
+    List.fold_left (fun acc_hash out_token -> 
+      hash_string (O.string_of_t out_token) acc_hash
+    ) 5381L result 
+  in
+
   Printf.printf "Processed Elements : %d\n" test_size;
-  Printf.printf "Trace              : %s\n" (List.map O.string_of_t result |> String.concat "");
+  Printf.printf "Trace Hash         : %016Lx\n" final_hash;
   Printf.printf "Execution Time     : %.6f seconds\n" (end_time -. start_time)
+
 
 let () =
   print_results "L* Vending Machine Controller" (Lazy.force learned) 4;

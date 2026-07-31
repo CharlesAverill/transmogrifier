@@ -95,3 +95,55 @@ if [ -n "$asan_cc" ]; then
 else
   overflow | "$MODERN"; echo "exit $?"
 fi
+
+hdr "7. performance benchmark"
+WORKLOAD_SIZE=1000000
+echo "Generating payload with ${WORKLOAD_SIZE} operations..."
+BENCH_PAYLOAD="$OUT/bench_input.bin"
+enc "$(python3 -c "print('harkr' * $WORKLOAD_SIZE)")" > "$BENCH_PAYLOAD"
+
+time_run() {
+  local binary="$1"
+  python3 -c '
+import time, subprocess, sys
+binary = sys.argv[1]
+payload_file = sys.argv[2]
+
+with open(payload_file, "rb") as f:
+    data = f.read()
+
+t0 = time.perf_counter()
+p = subprocess.Popen([binary], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+stdout, stderr = p.communicate(input=data)
+t1 = time.perf_counter()
+
+print(f"{t1 - t0:.6f}")
+' "$binary" "$BENCH_PAYLOAD"
+}
+
+echo "Running legacy binary benchmark..."
+LEGACY_TIME=$(time_run "$LEGACY")
+
+echo "Running modern (transmogrified) binary benchmark..."
+MODERN_TIME=$(time_run "$MODERN")
+
+echo
+printf '===============================================\n'
+printf '            PERFORMANCE METRICS                \n'
+printf '===============================================\n'
+printf '%-20s : %s seconds\n' "Legacy Exec Time" "$LEGACY_TIME"
+printf '%-20s : %s seconds\n' "Modern Exec Time" "$MODERN_TIME"
+
+python3 -c '
+import sys
+t_legacy = float(sys.argv[1])
+t_modern = float(sys.argv[2])
+if t_modern > 0:
+    speedup = t_legacy / t_modern
+    print(f"Performance Change   : {speedup:.2f}x speedup")
+else:
+    print("Modern time too close to zero to safely calculate delta.")
+' "$LEGACY_TIME" "$MODERN_TIME"
+printf '===============================================\n'
+
+rm -f "$BENCH_PAYLOAD"

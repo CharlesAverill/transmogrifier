@@ -26,7 +26,17 @@ NUMA node0 CPU(s):                       0-3
 #include <time.h>
 #include "vending.h"
 
-#define TEST_SIZE 100
+#define TEST_SIZE 100000
+
+// DJB2 Hash
+unsigned long long hash_string(const char *str, unsigned long long initial_hash) {
+    unsigned long long hash = initial_hash;
+    int c;
+    while ((c = (unsigned char)*str++)) {
+        hash = ((hash << 5) + hash) + c;
+    }
+    return hash;
+}
 
 const char* output_to_string(mealy_output_t out) {
     switch (out) {
@@ -71,12 +81,15 @@ int main(void)
 
     double elapsed = (double)(end - start) / CLOCKS_PER_SEC;
 
+    // Hash the trace
+    unsigned long long final_hash = 5381ULL;
+    for (unsigned long long i = 0; i < TEST_SIZE; i++) {
+        final_hash = hash_string(output_to_string(out[i]), final_hash);
+    }
+
     printf("=== C Benchmark ===\n");
     printf("Processed Elements : %d\n", TEST_SIZE);
-    printf("Trace              : ");
-    for (unsigned long long i = 0; i < TEST_SIZE; i++)
-        printf("%s", output_to_string(out[i]));
-    printf("\n");
+    printf("Trace Hash         : %016llx\n", final_hash);
     printf("Execution Time     : %.6f seconds\n", elapsed);
 
     free(test_vector);

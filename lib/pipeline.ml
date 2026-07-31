@@ -220,9 +220,9 @@ struct
     in
     reg 0 "delta" ;
     reg 1 "accept" ;
-    reg 2 "table" ;
-    reg 3 "init" ;
-    reg 4 "final" ;
+    reg 2 "q0" ;
+    reg 3 "table" ;
+    reg 4 "atable" ;
     reg 10 "run"
 
   (** Compile the learned NFA to Clight and print it to [output_fn] or [stdout]

@@ -58,9 +58,7 @@ static inline int dfa_state_accepts(dfa_state_t q)
     return DFA_IS_ACCEPTING(accept(q));
 }
 
-/** Whether the DFA accepts w. This is the composition the correctness theorems
- *  are about: compile_run_correct lands on the right state, and
- *  compile_accept_correct reports its output. */
+/** Whether the DFA accepts w. */
 static inline int dfa_accepts(dfa_word_t w, unsigned long long len)
 {
     return dfa_state_accepts(run(w, len));

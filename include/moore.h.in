@@ -64,8 +64,7 @@ extern moore_output_t output(moore_state_t q);
  */
 extern moore_state_t run(moore_word_t w, unsigned long long len);
 
-/** The output produced by running w from q0. Not emitted -- the obvious
- *  composition, provided for convenience. */
+/** The output produced by running w from q0. */
 static inline moore_output_t moore_run_output(moore_word_t w,
                                               unsigned long long len)
 {

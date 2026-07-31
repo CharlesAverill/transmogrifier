@@ -1,6 +1,6 @@
 /* nfa.h -- interface to an NFA compiled to Clight by Transmogrifier.
  *
- * GENERATED from include/nfa.h.in -- do not edit.
+ * GENERATED from templates/nfa.h.in -- do not edit.
  * Machine: suffix
  */
 
@@ -11,27 +11,13 @@
 extern "C" {
 #endif
 
-#define NFA_NSTATES 4ULL
-#define NFA_NSYMS   2ULL
-
-/** Words per set: ceil(NFA_NSTATES / 64), at least 1. */
-#define NFA_NWORDS  1ULL
-
-typedef unsigned long long nfa_state_t;  /* 0..NFA_NSTATES-1 */
-typedef unsigned long long nfa_symbol_t; /* 0..NFA_NSYMS-1 */
+typedef unsigned long long nfa_states_t;   /* Scalar representation of state subsets */
+typedef unsigned long long nfa_symbol_t;  /* 0..NFA_NSYMS-1 */
+typedef unsigned long long nfa_output_t;  /* 0..1; see the enum below */
 typedef nfa_symbol_t *nfa_word_t;
 
-/** A set of states, as NFA_NWORDS words. */
-typedef nfa_state_t nfa_set_t[NFA_NWORDS];
-
-/** Bit (i % 64) of word (i / 64). */
-#define NFA_SET_WORD(i)   ((i) / 64ULL)
-#define NFA_SET_BIT(i)    (1ULL << ((i) % 64ULL))
-#define NFA_SET_MEMBER(s, i) (((s)[NFA_SET_WORD(i)] & NFA_SET_BIT(i)) != 0ULL)
-
-#define NFA_TABLE_LEN (NFA_NSTATES * NFA_NSYMS * NFA_NWORDS)
-/** Word j of row (q, a) within the transition table. */
-#define NFA_TABLE_INDEX(q, a, j) (((q) * NFA_NSYMS + (a)) * NFA_NWORDS + (j))
+#define NFA_NSTATES 4ULL
+#define NFA_NSYMS   2ULL
 
 /* ---- Input symbols, in Sigma.enum order ---- */
 typedef enum {
@@ -40,51 +26,45 @@ typedef enum {
     SYM_COUNT = 2ULL /* |Sigma|; step's out-of-range threshold */
 } nfa_input_sym_t;
 
-/* ---- Emitted globals (read-only) ---- */
+/* ---- The bool output alphabet ----
+ *
+ * accept returns an index into O.enum, and for an NFA that enum is
+ *
+ *     Definition enum := [true; false].      (* theories/compiler/nfa.v *)
+ *
+ * so accepting is 0 and rejecting is 1. This inverts the C convention:
+ * `if (accept(q))` is BACKWARDS. Use NFA_IS_ACCEPTING or the wrappers below.
+ */
+typedef enum {
+    OUT_UNIT = 0ULL, /* "unit" */
+    OUT_COUNT = 1ULL /* |O|; accept_entry's out-of-range fallback */
+} output_sym_t;
 
-/** Row (q, a) is the NFA_NWORDS-word bitmap of delta(q, a). */
-extern const nfa_state_t table[NFA_TABLE_LEN];
-/** The initial set. */
-extern const nfa_state_t init[NFA_NWORDS];
-/** The accepting set; a run accepts iff its final set intersects this. */
-extern const nfa_state_t final[NFA_NWORDS];
+#define NFA_ACCEPT_INDEX 0ULL
+#define NFA_REJECT_INDEX 1ULL
+#define NFA_IS_ACCEPTING(o) ((o) == NFA_ACCEPT_INDEX)
+
+/* ---- Emitted globals (read-only) ---- */
+extern const nfa_states_t  table[];
+extern const nfa_output_t atable[];
+extern const nfa_states_t  q0;
 
 /* ---- Functions ---- */
+extern nfa_states_t  delta(nfa_states_t q, nfa_symbol_t a);
+extern nfa_output_t accept(nfa_states_t q);
+extern nfa_states_t  run(nfa_word_t w, unsigned long long len);
 
-/**
- * delta(cur, a, next): next := the union of the a-rows of every state in cur.
- *
- * cur and next must not alias: the body zeroes next before reading the rows.
- * An out-of-range symbol leaves next empty.
- *
- * Verified: compile_step_correct (theories/transparency/nfaproofs.v).
- */
-extern void delta(nfa_state_t *cur, nfa_symbol_t a, nfa_state_t *next);
-
-/**
- * accept(cur): whether cur intersects the accepting set.
- *
- * Verified: compile_accept_correct.
- */
-extern _Bool accept(nfa_state_t *cur);
-
-/**
- * run(w, len, out): out := the set reached from init after consuming w.
- *
- * Returns the reached set of states.
- *
- * w must hold len readable elements; out must have room for NFA_NWORDS words.
- *
- * Verified: compile_run_correct.
- */
-extern void run(nfa_word_t w, unsigned long long len, nfa_state_t *out);
+/** Whether the accumulated state set q is accepting.
+ *  (compile_accept_correct reports its output index). */
+static inline int nfa_state_accepts(nfa_states_t q)
+{
+    return NFA_IS_ACCEPTING(accept(q));
+}
 
 /** Whether the NFA accepts w. */
 static inline int nfa_accepts(nfa_word_t w, unsigned long long len)
 {
-    nfa_set_t out;
-    run(w, len, out);
-    return accept(out);
+    return nfa_state_accepts(run(w, len));
 }
 
 #ifdef __cplusplus

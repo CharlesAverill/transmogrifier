@@ -71,8 +71,7 @@ extern const mealy_state_t q0;
 extern mealy_state_t delta(mealy_state_t q, mealy_symbol_t a, mealy_output_t *out);
 
 /**
- * Run from q0 over w, writing len output indices into the caller-supplied
- * buffer out.
+ * Run from q0 over w, writing len output indices into the caller-supplied buffer out.
  * Verified: compile_run_correct.
  */
 extern void run(mealy_word_t w, unsigned long long len, mealy_output_t *out);
