@@ -96,54 +96,60 @@ else
   overflow | "$MODERN"; echo "exit $?"
 fi
 
-hdr "7. performance benchmark"
-WORKLOAD_SIZE=1000000
-echo "Generating payload with ${WORKLOAD_SIZE} operations..."
-BENCH_PAYLOAD="$OUT/bench_input.bin"
-enc "$(python3 -c "print('harkr' * $WORKLOAD_SIZE)")" > "$BENCH_PAYLOAD"
+hdr "7. performance benchmark" 
+WORKLOAD_SIZE=10000
+echo "Generating payload with ${WORKLOAD_SIZE} operations..." 
+BENCH_PAYLOAD="$OUT/bench_input.bin" 
+enc "$(python3 "-c" "print('harkr' * $WORKLOAD_SIZE)")" > "$BENCH_PAYLOAD" 
 
-time_run() {
-  local binary="$1"
-  python3 -c '
+time_run_avg() { 
+    local binary="$1" 
+    python3 "-c" '
 import time, subprocess, sys
+
 binary = sys.argv[1]
 payload_file = sys.argv[2]
+runs = 10000
+total_time = 0.0
 
 with open(payload_file, "rb") as f:
     data = f.read()
 
-t0 = time.perf_counter()
-p = subprocess.Popen([binary], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-stdout, stderr = p.communicate(input=data)
-t1 = time.perf_counter()
+for _ in range(runs):
+    t0 = time.perf_counter()
+    p = subprocess.Popen([binary], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = p.communicate(input=data)
+    t1 = time.perf_counter()
+    total_time += (t1 - t0)
 
-print(f"{t1 - t0:.6f}")
-' "$binary" "$BENCH_PAYLOAD"
-}
+avg_time = total_time / runs
+print(f"{avg_time:.6f}")
+' "$binary" "$BENCH_PAYLOAD" 
+} 
 
-echo "Running legacy binary benchmark..."
-LEGACY_TIME=$(time_run "$LEGACY")
+echo "Running legacy binary benchmark (10000 runs)..." 
+LEGACY_TIME=$(time_run_avg "$LEGACY") 
 
-echo "Running modern (transmogrified) binary benchmark..."
-MODERN_TIME=$(time_run "$MODERN")
+echo "Running modern (transmogrified) binary benchmark (10000 runs)..." 
+MODERN_TIME=$(time_run_avg "$MODERN") 
 
-echo
-printf '===============================================\n'
-printf '            PERFORMANCE METRICS                \n'
-printf '===============================================\n'
-printf '%-20s : %s seconds\n' "Legacy Exec Time" "$LEGACY_TIME"
-printf '%-20s : %s seconds\n' "Modern Exec Time" "$MODERN_TIME"
+echo 
+printf '===============================================\n' 
+printf '            PERFORMANCE METRICS (AVG)          \n' 
+printf '===============================================\n' 
+printf '%-20s : %s seconds\n' "Legacy Avg Time" "$LEGACY_TIME" 
+printf '%-20s : %s seconds\n' "Modern Avg Time" "$MODERN_TIME" 
 
-python3 -c '
+python3 "-c" '
 import sys
 t_legacy = float(sys.argv[1])
 t_modern = float(sys.argv[2])
 if t_modern > 0:
     speedup = t_legacy / t_modern
-    print(f"Performance Change   : {speedup:.2f}x speedup")
+    print(f"Performance Change : {speedup:.2f}x speedup")
 else:
     print("Modern time too close to zero to safely calculate delta.")
-' "$LEGACY_TIME" "$MODERN_TIME"
-printf '===============================================\n'
+' "$LEGACY_TIME" "$MODERN_TIME" 
+printf '===============================================\n' 
 
-rm -f "$BENCH_PAYLOAD"
+rm "-f" "$BENCH_PAYLOAD"

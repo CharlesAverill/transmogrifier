@@ -287,6 +287,7 @@ let hash_string (str : string) (initial_hash : int64) : int64 =
 let run_performance_test () =
   let dfa = Lazy.force learned in
   let test_size = 100000 in
+  let num_tests = 100 in
   
   print_endline "\n=== Generating OCaml Test Vector (vending) ===";
   let rec gen_vector i acc =
@@ -296,25 +297,30 @@ let run_performance_test () =
       let symbol = match phase_int with 0 -> S.Nickel | 1 -> S.Dime | 2 -> S.Refund | 3 -> S.Quarter | _ -> S.Refund in
       gen_vector (i - 1) (symbol :: acc)
   in
-  let test_vector = gen_vector (test_size - 1) [] in
-
-  (* print_endline (List.map S.string_of_t test_vector |> String.concat ""); *)
-
+  
   print_endline "=== OCaml Benchmark ===";
-  let start_time = Sys.time () in
-  let result = Teacher.M.output_word dfa test_vector in
-  let end_time = Sys.time () in
+  let test_vector = gen_vector (test_size - 1) [] in
+  let times = Array.make num_tests 0. in
+  let result = ref [O.Nothing] in
+  for i = 0 to num_tests - 1 do
+    let start_time = Sys.time () in
+    let x = Teacher.M.output_word dfa test_vector in
+    let end_time = Sys.time () in
+    result := x;
+    times.(i) <- end_time -. start_time
+  done;
+  let avg = (Array.fold_left (+.) 0. times) /. float num_tests in
 
-  (* Sequentially hash each token string in the trace list *)
   let final_hash = 
     List.fold_left (fun acc_hash out_token -> 
       hash_string (O.string_of_t out_token) acc_hash
-    ) 5381L result 
+    ) 5381L !result 
   in
 
+  Printf.printf "Number of tests    : %d\n" num_tests;
   Printf.printf "Processed Elements : %d\n" test_size;
   Printf.printf "Trace Hash         : %016Lx\n" final_hash;
-  Printf.printf "Execution Time     : %.6f seconds\n" (end_time -. start_time)
+  Printf.printf "Avg Execution Time : %.6f seconds\n" avg
 
 
 let () =

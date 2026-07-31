@@ -197,6 +197,7 @@ let compile_to_c () =
 let run_performance_test () =
   let dfa = Lazy.force learned in
   let test_size = 1_000_000 in
+  let num_tests = 100 in
   
   print_endline "\n=== Generating OCaml Test Vector (traffic) ===";
   let rec gen_vector i acc =
@@ -206,16 +207,24 @@ let run_performance_test () =
       let symbol = match phase_int with 0 -> S.Reset | _ -> S.Tick in
       gen_vector (i - 1) (symbol :: acc)
   in
-  let test_vector = gen_vector (test_size - 1) [] in
-
+  
   print_endline "=== OCaml Benchmark ===";
-  let start_time = Sys.time () in
-  let result = Teacher.M.output_string dfa test_vector in
-  let end_time = Sys.time () in
+  let test_vector = gen_vector (test_size - 1) [] in
+  let times = Array.make num_tests 0. in
+  let result = ref O.Red in
+  for i = 0 to num_tests - 1 do
+    let start_time = Sys.time () in
+    let x = Teacher.M.output_string dfa test_vector in
+    let end_time = Sys.time () in
+    result := x;
+    times.(i) <- end_time -. start_time
+  done;
+  let avg = (Array.fold_left (+.) 0. times) /. float num_tests in
 
+  Printf.printf "Number of tests    : %d\n" num_tests;
   Printf.printf "Processed Elements : %d\n" test_size;
-  Printf.printf "Final State        : %s\n" (O.string_of_t result);
-  Printf.printf "Execution Time     : %.6f seconds\n" (end_time -. start_time)
+  Printf.printf "Accepted           : %s\n" (O.string_of_t !result);
+  Printf.printf "Avg Execution Time : %.6f seconds\n" avg
 
 let () =
   print_results "L* Traffic Light Controller" (Lazy.force learned) 4;

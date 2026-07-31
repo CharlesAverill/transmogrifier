@@ -27,6 +27,7 @@ NUMA node0 CPU(s):                       0-3
 #include "vending.h"
 
 #define TEST_SIZE 100000
+#define NUM_TESTS 100
 
 // DJB2 Hash
 unsigned long long hash_string(const char *str, unsigned long long initial_hash) {
@@ -57,6 +58,7 @@ const char* output_to_string(mealy_output_t out) {
 
 int main(void)
 {
+    mealy_output_t final_output;
     mealy_symbol_t *test_vector =
         malloc(sizeof(mealy_symbol_t) * TEST_SIZE);
     mealy_output_t *out =
@@ -75,11 +77,13 @@ int main(void)
         }
     }
 
-    clock_t start = clock();
-    run(test_vector, TEST_SIZE, out);
-    clock_t end = clock();
-
-    double elapsed = (double)(end - start) / CLOCKS_PER_SEC;
+    double sum = 0;
+    for (int i = 0; i < NUM_TESTS; i++) {
+        clock_t start = clock();
+        run(test_vector, TEST_SIZE, out);
+        clock_t end = clock();
+        sum += (double)(end - start) / CLOCKS_PER_SEC;
+    }
 
     // Hash the trace
     unsigned long long final_hash = 5381ULL;
@@ -88,9 +92,10 @@ int main(void)
     }
 
     printf("=== C Benchmark ===\n");
+    printf("Number of tests    : %d\n", NUM_TESTS);
     printf("Processed Elements : %d\n", TEST_SIZE);
     printf("Trace Hash         : %016llx\n", final_hash);
-    printf("Execution Time     : %.6f seconds\n", elapsed);
+    printf("Avg Execution Time : %.6lf seconds\n", sum / NUM_TESTS);
 
     free(test_vector);
     free(out);
