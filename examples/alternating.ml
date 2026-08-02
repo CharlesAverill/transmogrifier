@@ -33,7 +33,6 @@ module Teacher : DFATEACHER with module S = S = struct
   module S = S
   module D = DFA (S)
 
-  (** Language membership: the string is "alternating" *)
   let member (s : S.str) : bool =
     match s with
     | [] ->
@@ -44,7 +43,6 @@ module Teacher : DFATEACHER with module S = S = struct
              (fun (last, mem) i -> (i, mem && last <> i))
              (h, true) t )
 
-  (** Teacher equivalence query, typed against D.t (not a fresh DFA(S)) *)
   let equiv_query (dfa : 'a D.t) : S.str option =
     let rec find_counter_example depth current_strings =
       if depth >= int_of_float (2. ** 12.) then
@@ -70,14 +68,9 @@ end
 (** L* implementation *)
 module Lstar = LstarLearner (Teacher)
 
-(** The learned DFA, computed once and shared by the printer and the
-    compiler.  [Pipeline] caches its own learner run, so going through
-    [Pipeline.compile] directly would learn a second time. *)
-let learned : __ Teacher.D.t Lazy.t = lazy (Lstar.lstar ())
+(** The learned DFA *)
+let learned : Lstar.dfa Lazy.t = lazy (Lstar.lstar ())
 
-(** [LstarLearner] exposes [lstar]; [LEARNER] asks for [learn].  This adapter
-    also pins the result to [learned] so the compiled automaton is exactly
-    the one printed above. *)
 module LstarAdapter : DFALEARNER =
 functor
   (T : DFATEACHER)

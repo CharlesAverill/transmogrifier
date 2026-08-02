@@ -69,9 +69,6 @@ module Teacher : MOORETEACHER with module S = S and module O = O = struct
   module O = O
   module M = Moore (S) (O)
 
-  (** Phases cycle on [Tick]:
-        Red -> Red+Yellow -> Green -> Yellow -> Red -> ...
-      [Reset] forces the lamp back to Red *)
   let output_lang (s : S.str) : O.t =
     let phase =
       List.fold_left
@@ -105,7 +102,7 @@ end
 (** Moore L* implementation *)
 module Learner = MooreLstarLearner (Teacher)
 
-let learned : __ Teacher.M.t Lazy.t = lazy (Learner.mlstar ())
+let learned : Learner.moore Lazy.t = lazy (Learner.mlstar ())
 
 module LstarAdapter : MOORELEARNER =
 functor

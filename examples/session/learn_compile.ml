@@ -149,20 +149,11 @@ let run_legacy_uncached (w : S.str) : O.t list =
         done
       with End_of_file -> ()
     with Sys_error _ | Unix.Unix_error _ -> () ) ;
-  (* Always reap the child. [close_process] re-closes [w_in]; on some versions
-     that raises Sys_error before the internal waitpid, which would leak a
-     zombie and a pipe pair -- after a few thousand queries the fd table fills
-     and the learner appears to hang. Swallow the error, then reap explicitly
-     if needed. *)
   ( try ignore (Unix.close_process (r_out, w_in))
     with Sys_error _ | Unix.Unix_error _ -> (
       try ignore (Unix.wait ()) with Unix.Unix_error _ -> () ) ) ;
   List.rev !acc
 
-(** Oracle results are memoized: L* asks the same word many times (once per
-    observation-table cell, and again during equivalence checks), and every miss
-    costs a fork+exec of the legacy binary. Without this the learner spends
-    essentially all its wall time creating processes. *)
 let oracle_cache : (S.str, O.t list) Hashtbl.t = Hashtbl.create 4096
 
 let oracle_calls = ref 0
@@ -187,14 +178,9 @@ module Teacher : MEALYTEACHER with module S = S and module O = O = struct
   module O = O
   module M = Mealy (S) (O)
 
-  (** Having already consumed [s], what disposition does reading [a] emit? *)
   let output_lang (s : S.str) (a : S.t) : O.t =
     match List.rev (run_legacy (s @ [a])) with last :: _ -> last | [] -> O.Deny
 
-  (** Breadth-first search for a word on which the hypothesis mispredicts.
-
-      [max_len = 4] covers all 780 words of length <= 4 over the 5-symbol
-      alphabet, the same coverage as the accuracy table below. *)
   let equiv_query (m : 'a M.t) : S.str option =
     let max_len = 4 in
     let rec bfs (queue : S.str list) : S.str option =
@@ -223,15 +209,13 @@ module Teacher : MEALYTEACHER with module S = S and module O = O = struct
     in
     bfs [[]]
 
-  (** Round cap. The learner converges in a handful of rounds for a machine
-      this size; the bound keeps a teacher bug from looping indefinitely. *)
   let fuel : int = 64
 end
 
 (** Mealy L* implementation *)
 module Learner = MealyLstarLearner (Teacher)
 
-let learned : __ Teacher.M.t Lazy.t = lazy (Learner.mlstar ())
+let learned : int Teacher.M.t Lazy.t = lazy (Learner.mlstar ())
 
 module LstarAdapter : MEALYLEARNER =
 functor
@@ -306,9 +290,6 @@ let print_results name m n =
 
 module GenHeader = Transmogrifier.Emit_header.MakeMoore (S) (O)
 
-(** Path helpers: default to the repo-relative locations used by [dune exec]
-    from the project root, but let a dune rule override them (sandbox CWD) via
-    the environment. *)
 let env_or key default =
   match Sys.getenv_opt key with Some v -> v | None -> default
 

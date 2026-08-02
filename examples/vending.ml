@@ -44,10 +44,6 @@ module S = struct
   let string_of_str s = String.concat "" (List.map string_of_t s)
 end
 
-(** Output alphabet
-
-    [Vend c] dispenses the item and returns [c] cents of change
-    [Coins c] is the refund lever handing back [c] cents. *)
 module O = struct
   type t = Nothing | Vend of int | Coins of int
 
@@ -100,9 +96,6 @@ module Teacher : MEALYTEACHER with module S = S and module O = O = struct
     | S.Refund ->
         0
 
-  (** Credit accumulated after consuming [s], starting from an empty
-      machine. Inserting a coin that reaches the price vends and clears
-      the credit. *)
   let credit (s : S.str) : int =
     List.fold_left
       (fun c -> function
@@ -116,8 +109,6 @@ module Teacher : MEALYTEACHER with module S = S and module O = O = struct
               c' )
       0 s
 
-  (** Having already consumed [s], what does reading [a]
-      emit? *)
   let output_lang (s : S.str) (a : S.t) : O.t =
     let c = credit s in
     match a with
@@ -133,7 +124,6 @@ module Teacher : MEALYTEACHER with module S = S and module O = O = struct
         else
           O.Nothing
 
-  (** Breadth-first search for a word on which the hypothesis mispredicts. *)
   let equiv_query (m : 'a M.t) : S.str option =
     let rec find_counter_example depth current_strings =
       if depth >= int_of_float (2. ** 12.) then
@@ -164,7 +154,7 @@ end
 (** Mealy L* implementation *)
 module Learner = MealyLstarLearner (Teacher)
 
-let learned : __ Teacher.M.t Lazy.t = lazy (Learner.mlstar ())
+let learned : Learner.mealy Lazy.t = lazy (Learner.mlstar ())
 
 module LstarAdapter : MEALYLEARNER =
 functor

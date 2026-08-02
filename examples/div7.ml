@@ -76,11 +76,6 @@ module S = struct
   let string_of_str s = String.concat "" (List.map string_of_t s)
 end
 
-(** Language: decimal strings (with leading zeros) whose numeric value is
-    divisible by 7. The minimal DFA has exactly 7 states - one per residue
-    class mod 7. The transition on reading digit d from state r is:
-        r' = (r * 10 + d) mod 7
-    which is the standard streaming divisibility DFA. *)
 module Teacher : DFATEACHER with module S = S = struct
   module S = S
   module D = DFA (S)
@@ -116,14 +111,9 @@ end
 (** L* implementation *)
 module Lstar = LstarLearner (Teacher)
 
-(** The learned DFA, computed once and shared by the printer and the
-    compiler.  [Pipeline] caches its own learner run, so going through
-    [Pipeline.compile] directly would learn a second time. *)
-let learned : __ Teacher.D.t Lazy.t = lazy (Lstar.lstar ())
+(** The learned DFA *)
+let learned : Lstar.dfa Lazy.t = lazy (Lstar.lstar ())
 
-(** [LstarLearner] exposes [lstar]; [LEARNER] asks for [learn].  This adapter
-    also pins the result to [learned] so the compiled automaton is exactly
-    the one printed above. *)
 module LstarAdapter : DFALEARNER =
 functor
   (T : DFATEACHER)
