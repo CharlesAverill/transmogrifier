@@ -46,25 +46,6 @@ Proof.
   apply index_of_lt in H. lia.
 Qed.
 
-Lemma index_of_inj : forall l x y i k,
-  index_of eq_dec x l k = Some i ->
-  index_of eq_dec y l k = Some i ->
-  x = y.
-Proof.
-  induction l; intros; simpl in *.
-    discriminate.
-  destruct eq_dec, eq_dec;
-    inversion H; inversion H0; subst; clear H H0; eauto.
-  apply index_of_ge in H3. lia.
-  apply index_of_ge in H2. lia.
-Qed.
-
-Lemma index_of_func : forall l x i j k,
-  index_of eq_dec x l k = Some i ->
-  index_of eq_dec x l k = Some j ->
-  i = j.
-Proof. intros. congruence. Qed.
-
 Lemma nth_error_combine : forall (A B : Type) (la : list A) (lb : list B) n,
   nth_error (combine la lb) n =
   match nth_error la n, nth_error lb n with
@@ -81,17 +62,6 @@ Proof.
   apply IHla.
 Qed.
 
-Lemma enumerate_nth : forall (l : list X) i x,
-  0 <= i < Z.of_nat (length l) ->
-  nth_error l (Z.to_nat i) = Some x ->
-  In (i, x) (enumerate l).
-Proof.
-  clear. intros. unfold enumerate. apply nth_error_In with (n := Z.to_nat i).
-  rewrite nth_error_combine, H0, nth_error_map, nth_error_seq. simpl.
-  unfold Datatypes.option_map. replace (_ <? _)%nat with true by (symmetry; apply Nat.ltb_lt; lia).
-  now rewrite Z2Nat.id by lia.
-Qed.
-
 Lemma index_of_nth_error : forall (l : list X) x i k,
   index_of eq_dec x l k = Some i ->
   nth_error l (Z.to_nat (i - k)) = Some x.
@@ -103,52 +73,6 @@ Proof.
   pose proof (index_of_ge _ _ _ _ H).
   apply IHl in H.
   now replace (Z.to_nat (i - k)) with (S (Z.to_nat (i - Z.succ k))) by lia.
-Qed.
-
-Lemma enumerate_spec : forall (l : list X) x i,
-  index_of eq_dec x l 0 = Some i -> In (i, x) (enumerate l).
-Proof.
-  intros. apply enumerate_nth.
-    eauto using index_of_bounds.
-  apply index_of_nth_error in H. now rewrite Z.sub_0_r in H.
-Qed.
-
-Lemma enumerate_In_bounds : forall (l : list X) i x,
-  In (i, x) (enumerate l) -> 0 <= i < Z.of_nat (length l).
-Proof.
-  intros. unfold enumerate in H. apply in_combine_l, in_map_iff in H.
-  destruct H, H. apply in_seq in H0. lia.
-Qed.
-
-Lemma map_fst_combine : forall (A B : Type) (la : list A) (lb : list B),
-  length la = length lb ->
-  map fst (combine la lb) = la.
-Proof.
-  induction la; intros; simpl in *.
-    reflexivity.
-  destruct lb; simpl in *.
-    discriminate.
-  f_equal. apply IHla. now inversion H.
-Qed.
-
-Lemma list_seq_norepet : forall y x,
-  list_norepet (seq x y).
-Proof.
-  induction y; intros.
-    constructor.
-  simpl. constructor.
-    rewrite in_seq. lia.
-  apply IHy.
-Qed.
-
-Lemma enumerate_index_norepet : forall (l : list X),
-  list_norepet (map fst (enumerate l)).
-Proof.
-  intros. unfold enumerate.
-  rewrite map_fst_combine by (rewrite length_map, length_seq; lia).
-  apply list_map_norepet.
-    apply list_seq_norepet.
-  intros. intro Contra. now apply Nat2Z.inj in Contra.
 Qed.
 
 End index.
@@ -248,28 +172,6 @@ Definition sidx (q : state) : option Z :=
 Definition symidx (a : s.t) : option Z :=
   index_of s.eq_dec a s.enum 0.
 
-Lemma repr_inj_in_range : forall a b,
-  0 <= a < Int64.modulus -> 0 <= b < Int64.modulus ->
-  Int64.repr a = Int64.repr b -> a = b.
-Proof.
-  intros.
-  rewrite <- Int64.unsigned_repr by (unfold Int64.max_unsigned; lia).
-  rewrite <- Int64.unsigned_repr at 1 by (unfold Int64.max_unsigned; lia).
-  now rewrite H1.
-Qed.
-
-Lemma bool_val_one : forall m, bool_val (Vint Int.one) tuint m = Some true.
-Proof.
-  intros m. unfold bool_val, tlong. simpl.
-  destruct Archi.ptr64; cbn; rewrite Int.eq_false by apply Int.one_not_zero; reflexivity.
-Qed.
-
-Lemma bool_val_zero : forall m, bool_val (Vint Int.zero) tuint m = Some false.
-Proof.
-  intros m. unfold bool_val, tuint. simpl.
-  destruct Archi.ptr64; cbn; rewrite Int.eq_true; reflexivity.
-Qed.
-
 Lemma bool_val_one_int : forall m, bool_val (Vint Int.one) tint m = Some true.
 Proof.
   intros m. unfold bool_val, tint. cbn.
@@ -280,18 +182,6 @@ Lemma bool_val_zero_int : forall m, bool_val (Vint Int.zero) tint m = Some false
 Proof.
   intros m. unfold bool_val, tint. cbn.
   destruct Archi.ptr64; cbn; rewrite Int.eq_true; reflexivity.
-Qed.
-
-Lemma fold_left_preserves_head : forall (A B : Type) (f : A -> B -> A) (P : A -> Prop) (l : list B) (a : A),
-  P a ->
-  (forall x b, In b l -> P x -> P (f x b)) ->
-  P (fold_left f l a).
-Proof.
-  induction l; intros; simpl in *.
-    assumption.
-  apply IHl.
-    apply H0. now left. assumption.
-  intros. apply H0. now right. assumption.
 Qed.
 
 (* delta lookup table *)
@@ -906,13 +796,6 @@ Proof.
   congruence.
 Qed.
 
-Lemma q0_index_bounds :
-  0 <= q0_index state moore state_eq_dec < Int64.modulus.
-Proof.
-  pose proof q0_index_correct as H. unfold sidx in H.
-  apply index_of_bounds in H. lia.
-Qed.
-
 Definition sym_indices (w : list s.t) (l : list Z) : Prop :=
   Forall2 (fun a i => symidx a = Some i) w l.
 
@@ -924,24 +807,6 @@ Definition word_in_mem (m : mem) (b : block) (ofs : Z) (l : list Z) : Prop :=
 Lemma sym_indices_length : forall w l,
   sym_indices w l -> length w = length l.
 Proof. intros. eapply Forall2_length; eassumption. Qed.
-
-Lemma sym_indices_bounds : forall w l i,
-  sym_indices w l -> In i l -> 0 <= i < Int64.modulus.
-Proof.
-  induction 1; intros. contradiction.
-  destruct H1; subst.
-    unfold symidx in H. apply index_of_bounds in H. lia.
-  eauto.
-Qed.
-
-Lemma sym_indices_nth : forall w l n a,
-  sym_indices w l ->
-  nth_error w n = Some a ->
-  exists i, nth_error l n = Some i /\ symidx a = Some i.
-Proof.
-  induction w; intros; destruct n; cbn in *; try discriminate;
-    inversion H; inversion H0; subst; eauto.
-Qed.
 
 Lemma eval_index_lvalue : forall e le m b ofs i,
   le ! (ids.(id_w)) = Some (Vptr b (Ptrofs.repr ofs)) ->

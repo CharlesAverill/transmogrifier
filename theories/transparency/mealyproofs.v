@@ -75,37 +75,6 @@ Proof.
   now replace (Z.to_nat (i - k)) with (S (Z.to_nat (i - Z.succ k))) by lia.
 Qed.
 
-Lemma map_fst_combine : forall (A B : Type) (la : list A) (lb : list B),
-  length la = length lb ->
-  map fst (combine la lb) = la.
-Proof.
-  induction la; intros; simpl in *.
-    reflexivity.
-  destruct lb; simpl in *.
-    discriminate.
-  f_equal. apply IHla. now inversion H.
-Qed.
-
-Lemma list_seq_norepet : forall y x,
-  list_norepet (seq x y).
-Proof.
-  induction y; intros.
-    constructor.
-  simpl. constructor.
-    rewrite in_seq. lia.
-  apply IHy.
-Qed.
-
-Lemma enumerate_index_norepet : forall (l : list X),
-  list_norepet (map fst (enumerate l)).
-Proof.
-  intros. unfold enumerate.
-  rewrite map_fst_combine by (rewrite length_map, length_seq; lia).
-  apply list_map_norepet.
-    apply list_seq_norepet.
-  intros. intro Contra. now apply Nat2Z.inj in Contra.
-Qed.
-
 Lemma index_of_complete : forall (l : list X) x k,
   In x l -> exists i, index_of eq_dec x l k = Some i.
 Proof.
@@ -137,35 +106,13 @@ Qed.
 
 End index.
 
-Section outputs.
-Variable state : Type.
-Variable m : Mealy.t state.
-
-Lemma outputs_snoc : forall w a q,
-  outputs m q (w ++ [a])
-  = outputs m q w ++ [m.(output _) (fold_left m.(transition _) w q) a].
-Proof.
-  induction w; intros; cbn.
-    reflexivity.
-  now rewrite IHw.
-Qed.
-
-Lemma run_outputs_snoc : forall w a,
-  run_outputs m (w ++ [a])
-  = run_outputs m w ++ [m.(output _) (Mealy.run m w) a].
-Proof.
-  intros. unfold run_outputs, Mealy.run. apply outputs_snoc.
-Qed.
-
-Lemma outputs_length : forall w q,
+Lemma outputs_length : forall {state} w q (m : Mealy.t state),
   length (outputs m q w) = length w.
 Proof. induction w; intros; cbn; auto. Qed.
 
-Lemma run_outputs_length : forall w,
+Lemma run_outputs_length : forall {state} w (m : Mealy.t state),
   length (run_outputs m w) = length w.
 Proof. intros. apply outputs_length. Qed.
-
-End outputs.
 
 Section correctness.
 Variable state : Type.
@@ -357,32 +304,6 @@ Variable Hinit : Genv.init_mem p = Some m0.
 Variable table_bounded :
   8 * (Z.of_nat (length mealy.(states _)) * Z.of_nat (length s.enum)) < Ptrofs.modulus.
 
-Lemma find_table :
-  exists b,
-    Genv.find_symbol ge ids.(id_table) = Some b /\
-    Genv.find_def ge b = Some (Gvar (compile_table state mealy state_eq_dec)).
-Proof.
-  apply Genv.find_def_symbol.
-  apply prog_defmap_norepet.
-    apply global_idents_norepet.
-  pose proof compile_program_defs as Hdefs.
-  change (AST.prog_defs p) with (prog_defs p).
-  rewrite Hdefs. now left.
-Qed.
-
-Lemma find_otable :
-  exists b,
-    Genv.find_symbol ge ids.(id_otable) = Some b /\
-    Genv.find_def ge b = Some (Gvar (compile_otable state mealy)).
-Proof.
-  apply Genv.find_def_symbol.
-  apply prog_defmap_norepet.
-    apply global_idents_norepet.
-  pose proof compile_program_defs as Hdefs.
-  change (AST.prog_defs p) with (prog_defs p).
-  rewrite Hdefs. right. now left.
-Qed.
-
 Lemma find_delta :
   exists b,
     Genv.find_symbol ge ids.(id_delta) = Some b /\
@@ -401,44 +322,6 @@ Proof.
   now apply Genv.find_funct_ptr_iff.
 Qed.
 
-Lemma init_data_list_nth_load_int64 :
-  forall (F V : Type) (ge' : Genv.t F V) b il n v m base_ofs,
-  (forall id, In id il -> exists x, id = Init_int64 x) ->
-  Genv.load_store_init_data ge' m b base_ofs il ->
-  nth_error il n = Some (Init_int64 v) ->
-  Mem.load Mint64 m b (base_ofs + 8 * Z.of_nat n) = Some (Vlong v).
-Proof. clear.
-  induction il; intros n v m base_ofs Hall Hlsid Hnth.
-    now destruct n.
-  destruct n; cbn - [Z.of_nat Z.mul] in *.
-  - inversion Hnth; subst; clear Hnth.
-    destruct Hlsid as (Hload & _).
-    now rewrite Z.mul_0_r, Z.add_0_r.
-  - destruct (Hall a) as (x & Hx); [now left|]. subst a.
-    destruct Hlsid as (_ & Hrest). cbn - [Z.of_nat] in Hrest.
-    replace (base_ofs + 8 * Z.of_nat (S n))
-      with ((base_ofs + 8) + 8 * Z.of_nat n) by lia.
-    eapply IHil; eauto.
-Qed.
-
-Lemma table_init_all_int64 : forall id,
-  In id (table_init state mealy state_eq_dec) -> exists x, id = Init_int64 x.
-Proof.
-  intros. unfold table_init in H.
-  apply in_flat_map in H. destruct H as ((qi & q) & _ & Hin).
-  unfold table_row in Hin. apply in_map_iff in Hin.
-  destruct Hin as ((si & sy) & Heq & _). subst. eauto.
-Qed.
-
-Lemma otable_init_all_int64 : forall id,
-  In id (otable_init state mealy) -> exists x, id = Init_int64 x.
-Proof.
-  intros. unfold otable_init in H.
-  apply in_flat_map in H. destruct H as ((qi & q) & _ & Hin).
-  unfold otable_row in Hin. apply in_map_iff in Hin.
-  destruct Hin as ((si & sy) & Heq & _). subst. eauto.
-Qed.
-
 Lemma nsyms_bound : 0 <= MC.nsyms <= Int64.max_unsigned.
 Proof.
   unfold MC.nsyms, Int64.max_unsigned.
@@ -449,50 +332,6 @@ Lemma nstates_bound : 0 <= MC.nstates state mealy <= Int64.max_unsigned.
 Proof.
   unfold MC.nstates, Int64.max_unsigned.
   pose proof (Nat2Z.is_nonneg (Datatypes.length (states state mealy))). lia.
-Qed.
-
-Lemma table_in_mem : forall b k v,
-  Genv.find_symbol ge ids.(id_table) = Some b ->
-  nth_error (table_init state mealy state_eq_dec) (Z.to_nat k) = Some (Init_int64 v) ->
-  0 <= k < nstates * nsyms ->
-  Mem.loadv Mint64 m0 (Vptr b (Ptrofs.repr (8 * k))) = Some (Vlong v).
-Proof.
-  intros b k v Hsym Hnth Hk.
-  destruct find_table as (b' & Hsym' & Hdef).
-  assert (b' = b) by congruence. subst b'.
-  assert (Hvi : Genv.find_var_info ge b = Some (compile_table state mealy state_eq_dec)).
-    { apply Genv.find_var_info_iff. eauto. }
-  destruct (Genv.init_mem_characterization _ _ Hvi Hinit)
-    as (_ & _ & Hlsid & _).
-  specialize (Hlsid eq_refl).
-  cbn [Mem.loadv].
-  rewrite Ptrofs.unsigned_repr.
-  - replace (8 * k) with (0 + 8 * Z.of_nat (Z.to_nat k)) by lia.
-    eapply init_data_list_nth_load_int64; eauto.
-    apply table_init_all_int64.
-  - unfold Ptrofs.max_unsigned, nstates, nsyms in *. nia.
-Qed.
-
-Lemma otable_in_mem : forall b k v,
-  Genv.find_symbol ge ids.(id_otable) = Some b ->
-  nth_error (otable_init state mealy) (Z.to_nat k) = Some (Init_int64 v) ->
-  0 <= k < nstates * nsyms ->
-  Mem.loadv Mint64 m0 (Vptr b (Ptrofs.repr (8 * k))) = Some (Vlong v).
-Proof.
-  intros b k v Hsym Hnth Hk.
-  destruct find_otable as (b' & Hsym' & Hdef).
-  assert (b' = b) by congruence. subst b'.
-  assert (Hvi : Genv.find_var_info ge b = Some (compile_otable state mealy)).
-    { apply Genv.find_var_info_iff. eauto. }
-  destruct (Genv.init_mem_characterization _ _ Hvi Hinit)
-    as (_ & _ & Hlsid & _).
-  specialize (Hlsid eq_refl).
-  cbn [Mem.loadv].
-  rewrite Ptrofs.unsigned_repr.
-  - replace (8 * k) with (0 + 8 * Z.of_nat (Z.to_nat k)) by lia.
-    eapply init_data_list_nth_load_int64; eauto.
-    apply otable_init_all_int64.
-  - unfold Ptrofs.max_unsigned, nstates, nsyms in *. nia.
 Qed.
 
 Lemma bool_val_one_int : forall m, bool_val (Vint Int.one) tint m = Some true.

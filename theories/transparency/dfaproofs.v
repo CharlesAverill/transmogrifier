@@ -31,14 +31,6 @@ Lemma run_moore_of_dfa : forall (d : DFA.t state) (w : list s.t),
   Moore.run (moore_of_dfa d) w = DFA.run d w.
 Proof. reflexivity. Qed.
 
-Lemma states_moore_of_dfa : forall (d : DFA.t state),
-  Moore.states state (moore_of_dfa d) = DFA.states state d.
-Proof. reflexivity. Qed.
-
-Lemma accept_moore_of_dfa : forall (d : DFA.t state) (q : state),
-  Moore.output state (moore_of_dfa d) q = DFA.accept state d q.
-Proof. reflexivity. Qed.
-
 End coercion.
 
 Section correctness.
@@ -51,9 +43,6 @@ Notation m := (moore_of_dfa state dfa).
 (** Well-formedness: the state and symbol enumerations fit in [tlong] *)
 Variable states_bounded : Z.of_nat (length dfa.(DFA.states _)) < Int64.modulus.
 Variable syms_bounded   : 0 < Z.of_nat (length s.enum) < Int64.modulus.
-
-Lemma O_bounded : 0 < Z.of_nat (length Out.enum) < Int64.modulus.
-Proof. cbn. unfold Int64.modulus, Int64.wordsize, Wordsize_64.wordsize, two_power_nat. cbn. lia. Qed.
 
 Variable base : ident.
 Variable p : Clight.program.

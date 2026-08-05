@@ -87,8 +87,6 @@ Proof.
   unfold d; change Int64.modulus with Ptrofs.modulus; cbn [DFA.states]; nia.
 Qed.
 
-(** [accept_entry] indexes into [DC.Out.enum = [true; false]], so it is [0] on
-    an accepting state and [1] otherwise. *)
 Lemma accept_entry_val : forall q,
   accept_entry (list state) m q = (if d.(DFA.accept _) q then 0 else 1).
 Proof. intros. apply D.accept_entry_val. Qed.
@@ -126,15 +124,9 @@ Lemma accept_run_nfa : forall w,
   d.(DFA.accept _) (DFA.run d w) = NFA.accept_string nfa w.
 Proof. intro. apply (to_dfa_correct state_eq_dec nfa w). Qed.
 
-(* [d]'s transition is the NFA subset-construction step, restricted to the listed states. *)
-Lemma transition_nfa : forall q a,
-  d.(DFA.transition _) q a
-  = restrict state_eq_dec nfa (NFA.step (NFA.transition _ nfa) q a).
-Proof. reflexivity. Qed.
-
 (** Running the compiled program on a word [w] held in memory reaches some state
     index [r_idx], and the compiled accept function maps that index to the NFA's
-    acceptance verdict on [w] ([0] = accept, [1] = reject). *)
+    acceptance verdict on [w]. *)
 Theorem compile_accepts_nfa : forall w l b ofs,
   sym_indices w l ->
   word_in_mem m0 b ofs l ->
