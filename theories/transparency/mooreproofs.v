@@ -236,7 +236,7 @@ Proof.
   rewrite length_map, length_combine, length_map, length_seq. lia.
 Qed.
 
-Theorem table_entry_correct : forall q sym q_idx s_idx,
+Lemma table_entry_correct : forall q sym q_idx s_idx,
   sidx q = Some q_idx ->
   symidx sym = Some s_idx ->
   nth_error (table_init state moore state_eq_dec)
@@ -368,7 +368,7 @@ Proof.
   - unfold Ptrofs.max_unsigned. unfold nstates, nsyms in Hk. lia.
 Qed.
 
-Theorem atable_entry_correct : forall q q_idx,
+Lemma atable_entry_correct : forall q q_idx,
   sidx q = Some q_idx ->
   nth_error (atable_init state moore) (Z.to_nat q_idx)
   = Some (Init_int64 (Int64.repr (accept_entry state moore q))).

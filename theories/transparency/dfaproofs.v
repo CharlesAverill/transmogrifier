@@ -74,7 +74,7 @@ Lemma q0_index_correct :
   sidx dfa.(DFA.initial _) = Some (q0_index state m state_eq_dec).
 Proof. apply M.q0_index_correct. Qed.
 
-Lemma compile_delta_correct : forall q sym q_idx s_idx next_idx,
+Theorem compile_delta_correct : forall q sym q_idx s_idx next_idx,
   sidx q = Some q_idx ->
   symidx sym = Some s_idx ->
   sidx (dfa.(DFA.transition _) q sym) = Some next_idx ->
@@ -108,7 +108,7 @@ Proof.
   destruct (DFA.accept state dfa q); reflexivity.
 Qed.
 
-Lemma compile_accept_correct : forall q q_idx,
+Theorem compile_accept_correct : forall q q_idx,
   sidx q = Some q_idx ->
   eval_funcall function_entry2 ge m0
     (compile_accept state m ids)
@@ -120,7 +120,7 @@ Proof.
   now compute.
 Qed.
 
-Lemma compile_run_correct : forall w l b ofs,
+Theorem compile_run_correct : forall w l b ofs,
   sym_indices w l ->
   word_in_mem m0 b ofs l ->
   0 <= ofs ->
